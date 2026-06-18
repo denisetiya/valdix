@@ -12,6 +12,11 @@ const ULID_RE = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 const NANOID_RE = /^[A-Za-z0-9_-]{21}$/;
 const BASE64_RE = /^[A-Za-z0-9+/]*={0,2}$/;
 const EMOJI_RE = /^[\p{Emoji_Presentation}\p{Extended_Pictographic}]+$/u;
+const ALPHA_RE = /^\p{L}+$/u;
+const NUMERIC_RE = /^[0-9]+$/;
+const SYMBOL_RE = /^[\p{S}\p{P}\p{Z}]+$/u;
+// Phone: E.164 (+, country code, number) or common local formats (digits with optional separators)
+const PHONE_RE = /^\+?[0-9]{1,4}?[-. \s]?(\(?[0-9]{1,4}\)?[-. \s]?){1,4}[0-9]{1,9}$/;
 
 const isValidIPv4 = (s: string): boolean => {
   const parts = s.split(".");
@@ -48,6 +53,11 @@ type Rule =
   | { kind: "datetime" }
   | { kind: "date" }
   | { kind: "time" }
+  | { kind: "alpha"; message?: string }
+  | { kind: "numeric"; message?: string }
+  | { kind: "symbol"; message?: string }
+  | { kind: "phone"; message?: string }
+  | { kind: "required"; message?: string }
   | { kind: "regex"; value: RegExp; message?: string }
   | { kind: "startsWith"; value: string }
   | { kind: "endsWith"; value: string }
@@ -132,6 +142,36 @@ export class StringSchema extends Schema<string> {
   regex(pattern: RegExp, message?: string): StringSchema { return this.with({ kind: "regex", value: pattern, message }); }
   /** Shorthand for `.min(1)`. */
   nonempty(message?: string): StringSchema { return this.min(1, message); }
+  /** Require only letters (a-z, A-Z). Unicode-aware. */
+  alpha(message?: string): StringSchema {
+    const s = this.with({ kind: "alpha", message });
+    s.customValidation = { validation: "alpha", format: { pattern: "^\\p{L}+$" } };
+    return s;
+  }
+  /** Require only digits (0-9). */
+  numeric(message?: string): StringSchema {
+    const s = this.with({ kind: "numeric", message });
+    s.customValidation = { validation: "numeric", format: { pattern: "^[0-9]+$" } };
+    return s;
+  }
+  /** Require only symbol/non-alphanumeric characters. */
+  symbol(message?: string): StringSchema {
+    const s = this.with({ kind: "symbol", message });
+    s.customValidation = { validation: "symbol", format: { pattern: "^[\\p{S}\\p{P}\\p{Z}]+$" } };
+    return s;
+  }
+  /** Validate as a phone number (E.164 or common local format). */
+  phone(message?: string): StringSchema {
+    const s = this.with({ kind: "phone", message });
+    s.customValidation = { validation: "phone", format: { format: "phone" } };
+    return s;
+  }
+  /**
+   * Override the "tidak boleh kosong" / "required" message for the
+   * empty/undefined/null case. The empty-string check runs first —
+   * it produces this message instead of the type mismatch or min check.
+   */
+  required(message?: string): StringSchema { return this.with({ kind: "required", message }); }
   /** Transform: trim whitespace. */
   trim(): TransformSchema<string, string, string> { return new TransformSchema(this, (s) => s.trim()); }
   /** Transform: lowercase. */
@@ -152,6 +192,14 @@ export class StringSchema extends Schema<string> {
   }
 
   _parse(input: unknown, ctx: ParseContext): InternalResult<string> {
+    // Smart "required": empty / null / undefined → "tidak boleh kosong" (or custom message).
+    // For required string fields this is more user-friendly than the type check
+    // or the min(3) check on "".
+    if (input === undefined || input === null || input === "") {
+      const reqRule = this.rules.find(r => r.kind === "required");
+      ctx.addIssue({ code: "required", message: reqRule?.message });
+      return invalid;
+    }
     if (typeof input !== "string") {
       ctx.addIssue({ code: "invalid_type", expected: "string", received: typeOf(input) });
       return invalid;
@@ -256,6 +304,22 @@ export class StringSchema extends Schema<string> {
       }
       if (rule.kind === "includes" && !input.includes(rule.value)) {
         ctx.addIssue({ code: "invalid_string", validation: `includes "${rule.value}"` });
+        failed = true; if (ctx.abortEarly) return invalid;
+      }
+      if (rule.kind === "alpha" && !ALPHA_RE.test(input)) {
+        ctx.addIssue({ code: "invalid_string", validation: "alpha", message: rule.message });
+        failed = true; if (ctx.abortEarly) return invalid;
+      }
+      if (rule.kind === "numeric" && !NUMERIC_RE.test(input)) {
+        ctx.addIssue({ code: "invalid_string", validation: "numeric", message: rule.message });
+        failed = true; if (ctx.abortEarly) return invalid;
+      }
+      if (rule.kind === "symbol" && !SYMBOL_RE.test(input)) {
+        ctx.addIssue({ code: "invalid_string", validation: "symbol", message: rule.message });
+        failed = true; if (ctx.abortEarly) return invalid;
+      }
+      if (rule.kind === "phone" && !PHONE_RE.test(input.replace(/[\s().-]/g, ""))) {
+        ctx.addIssue({ code: "invalid_string", validation: "phone", message: rule.message });
         failed = true; if (ctx.abortEarly) return invalid;
       }
     }

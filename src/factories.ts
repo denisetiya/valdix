@@ -10,7 +10,7 @@ import { ArraySchema, TupleSchema } from "./schemas/array.js";
 import { RecordSchema } from "./schemas/record.js";
 import { DiscriminatedUnionSchema, LazySchema, SetSchema, MapSchema } from "./schemas/advanced.js";
 import { FunctionSchema, PromiseSchema } from "./schemas/function.js";
-import { Schema, TransformSchema, PipeSchema, OptionalSchema, NullableSchema, DefaultSchema, CatchSchema, BrandSchema, type Infer, type Input } from "./core/schema.js";
+import { Schema, TransformSchema, PipeSchema, OptionalSchema, NullableSchema, DefaultSchema, CatchSchema, BrandSchema, IntersectionSchema, type Infer, type Input } from "./core/schema.js";
 
 // ── Primitives ──
 export const string = () => new StringSchema();
@@ -44,7 +44,10 @@ export const map = <K extends Schema<any, any>, V extends Schema<any, any>>(key:
 export const union = <T extends Schema<any, any>[]>(schemas: T): T extends [infer First] ? (First extends Schema<any, any> ? First : never) : Schema<any> =>
   schemas.length === 1 ? schemas[0] as any : schemas.reduce((acc, s) => acc.or(s)) as any;
 
-export const intersection = <A extends Schema<any, any>, B extends Schema<any, any>>(left: A, right: B) => left.and(right);
+export const intersection = <T extends Schema<any, any>[]>(...schemas: T): IntersectionSchema<T> => {
+  if (schemas.length < 2) throw new Error("intersection() requires at least 2 schemas");
+  return new IntersectionSchema(schemas);
+};
 
 // ── Advanced ──
 export const discriminatedUnion = <TKey extends string, TSchemas extends Record<string, Schema<any, any>>>(

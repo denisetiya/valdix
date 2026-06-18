@@ -50,11 +50,11 @@ const applyTemplate = (
 export const resolveMessage = (
   issue: Omit<ValdixIssue, "message">,
   lang: string,
-  locales: Map<string, LocaleCatalog>,
+  locales: Record<string, LocaleCatalog>,
   errorMap?: ErrorMap
 ): string => {
-  const catalog = locales.get(lang) ?? locales.get("en");
-  const fallback = locales.get("en");
+  const catalog = locales[lang] ?? locales["en"];
+  const fallback = locales["en"];
   const defaultError =
     applyTemplate(catalog?.[issue.code], issue) ??
     applyTemplate(fallback?.[issue.code], issue) ??

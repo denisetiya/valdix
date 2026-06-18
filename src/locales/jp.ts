@@ -1,7 +1,10 @@
 import type { LocaleCatalog } from "../core/types.js";
 
+const humanize = (s: string) =>
+  s.replace(/[_-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+
 export const JP: LocaleCatalog = {
-  required: () => "この項目は必須です",
+  required: (i) => `${i.field ? humanize(i.field) : "この項目"}は必須です`,
   invalid_type: (i) => `${i.expected ?? "有効な値"}が必要ですが、${i.received ?? "不明"}が入力されました`,
   invalid_literal: (i) => `リテラル ${String(i.literal)} が必要です`,
   invalid_enum_value: (i) => `次のいずれかを選択してください: ${(i.options ?? []).map(String).join("、")}`,
@@ -42,6 +45,10 @@ export const JP: LocaleCatalog = {
     if (i.validation === "url") return "URLの形式が正しくありません";
     if (i.validation === "uuid") return "UUIDの形式が正しくありません";
     if (i.validation === "regex") return "フォーマットが正しくありません";
+    if (i.validation === "alpha") return "英字のみ入力できます（a-z、A-Z）";
+    if (i.validation === "numeric") return "数字のみ入力できます（0-9）";
+    if (i.validation === "symbol") return "記号のみ、英数字は使えません";
+    if (i.validation === "phone") return "電話番号の形式が正しくありません";
     return "形式が正しくありません";
   },
   invalid_number: () => "有効な数字を入力してください",

@@ -59,38 +59,53 @@ export class ArraySchema<T extends Schema<any, any>>
       ctx.addIssue({ code: "invalid_type", expected: "array", received: typeOf(input) });
       return invalid;
     }
-    const out: unknown[] = [];
+    const len = input.length;
+    const out: unknown[] = new Array(len);
     let hasErr = false;
-
-    for (let i = 0; i < input.length; i++) {
-      const child = ctx.childContext(String(i));
-      const parsed = this.item._parseWithContext(input[i], child);
-      if (!parsed.ok) { hasErr = true; if (ctx.abortEarly) return invalid; continue; }
-      out.push(parsed.value);
+    const pathLen = ctx.pathStack.length;
+    const itemSchema = this.item;
+    const hasDesc = !!itemSchema.description;
+    for (let i = 0; i < len; i++) {
+      ctx.pathStack.push(i);
+      const parsed = hasDesc
+        ? itemSchema._parseWithContext(input[i], ctx)
+        : itemSchema._parse(input[i], ctx);
+      ctx.pathStack.length = pathLen;
+      if (!parsed.ok) {
+        hasErr = true;
+        if (ctx.abortEarly) return invalid;
+        continue;
+      }
+      out[i] = parsed.value;
     }
 
-    for (const rule of this.rules) {
+    if (hasErr || this.rules.length === 0) {
+      if (hasErr) return invalid;
+      return ok(out as T["_output"][]);
+    }
+
+    for (let r = 0; r < this.rules.length; r++) {
+      const rule = this.rules[r]!;
       if (rule.kind === "min" && out.length < rule.value) {
         ctx.addIssue({ code: "too_small", kind: "array", minimum: rule.value, inclusive: true, message: rule.message });
         if (ctx.abortEarly) return invalid;
-      }
-      if (rule.kind === "max" && out.length > rule.value) {
+      } else if (rule.kind === "max" && out.length > rule.value) {
         ctx.addIssue({ code: "too_big", kind: "array", maximum: rule.value, inclusive: true, message: rule.message });
         if (ctx.abortEarly) return invalid;
-      }
-      if (rule.kind === "length" && out.length !== rule.value) {
+      } else if (rule.kind === "length" && out.length !== rule.value) {
         ctx.addIssue({
           code: out.length < rule.value ? "too_small" : "too_big",
           kind: "array", minimum: rule.value, maximum: rule.value, exact: true, message: rule.message
         });
         if (ctx.abortEarly) return invalid;
-      }
-      if (rule.kind === "unique") {
+      } else if (rule.kind === "unique") {
         const seen = new Set<string>();
         for (let i = 0; i < out.length; i++) {
           const k = JSON.stringify(out[i]);
           if (seen.has(k)) {
-            ctx.addIssue({ code: "custom", path: [String(i)], message: "Duplicate item in array" });
+            ctx.pathStack.push(i);
+            ctx.addIssue({ code: "custom", message: "Duplicate item in array" });
+            ctx.pathStack.length = pathLen;
             if (ctx.abortEarly) return invalid;
           } else {
             seen.add(k);
@@ -125,13 +140,19 @@ export class TupleSchema<T extends Schema<any, any>[]>
       ctx.addIssue({ code: "invalid_tuple_length", minimum: this.items.length, maximum: input.length });
       return invalid;
     }
-    const out: unknown[] = [];
+    const out: unknown[] = new Array(this.items.length);
     let hasErr = false;
+    const pathLen = ctx.pathStack.length;
     for (let i = 0; i < this.items.length; i++) {
-      const child = ctx.childContext(String(i));
-      const parsed = this.items[i]!._parseWithContext(input[i], child);
+      ctx.pathStack.push(i);
+      const schema = this.items[i]!;
+      const v = input[i];
+      const parsed = schema.description
+        ? schema._parseWithContext(v, ctx)
+        : schema._parse(v, ctx);
+      ctx.pathStack.length = pathLen;
       if (!parsed.ok) { hasErr = true; if (ctx.abortEarly) return invalid; continue; }
-      out.push(parsed.value);
+      out[i] = parsed.value;
     }
     if (hasErr) return invalid;
     return ok(out);

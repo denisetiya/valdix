@@ -1,19 +1,21 @@
 import type { ParseOptions, SafeParseResult, ValdixIssue, ErrorMap, PathSegment } from "./types.js";
-import { createParseContext, ok, invalid, type InternalResult, type ParseContext } from "./context.js";
+import { createParseContext, ok, invalid, type InternalResult, type ParseContext, type LocaleRegistrar } from "./context.js";
 import type { LocaleCatalog } from "./types.js";
 
 let defaultLang = "en";
 let errorMap: ErrorMap | undefined = undefined;
-const localeRegistry = new Map<string, LocaleCatalog>();
-
+const localeRegistry: LocaleRegistrar = Object.create(null);
 export const useLang = (lang: string): void => { defaultLang = lang; };
-export const registerLocale = (lang: string, catalog: LocaleCatalog): void => { localeRegistry.set(lang, catalog); };
-export const getLocales = (): Map<string, LocaleCatalog> => localeRegistry;
+export const registerLocale = (lang: string, catalog: LocaleCatalog): void => { localeRegistry[lang] = catalog; };
+export const getLocales = (): LocaleRegistrar => localeRegistry;
 export const setErrorMap = (fn: ErrorMap | undefined): void => { errorMap = fn; };
 export const getErrorMap = (): ErrorMap | undefined => errorMap;
 
 export type Infer<T extends Schema<any, any>> = T extends Schema<infer O, any> ? O : never;
 export type Input<T extends Schema<any, any>> = T extends Schema<any, infer I> ? I : never;
+
+type UnionToIntersection<U> =
+  (U extends any ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
 
 // ─── Standard Schema interface (https://standardschema.dev) ───
 export interface StandardSchemaProps<I, O> {
@@ -33,21 +35,9 @@ export abstract class Schema<TOutput = unknown, TInput = TOutput> {
   readonly _input!: TInput;
   description?: string;
 
-  // Cycle protection during parse
-  protected _parseGuarded(input: unknown, ctx: ParseContext, seen: Set<object>): InternalResult<TOutput> {
-    if (seen.has(this as unknown as object)) {
-      return ok(input as TOutput);
-    }
-    seen.add(this as unknown as object);
-    const result = this._parseWithContext(input, ctx);
-    seen.delete(this as unknown as object);
-    return result;
-  }
-
+  // ── Internal parse entry ──
   _parseWithContext(input: unknown, ctx: ParseContext): InternalResult<TOutput> {
-    if (this.description) {
-      ctx.descriptionStack.push(this.description);
-    }
+    if (this.description) ctx.descriptionStack.push(this.description);
     const r = this._parse(input, ctx);
     if (this.description) ctx.descriptionStack.pop();
     return r;
@@ -55,10 +45,14 @@ export abstract class Schema<TOutput = unknown, TInput = TOutput> {
 
   abstract _parse(input: unknown, ctx: ParseContext): InternalResult<TOutput>;
 
-  /** Parse a value, throwing on failure. */
+  /**
+   * Parse a value, throwing on failure.
+   * For non-recursive schemas this is the fast path — no `seen` Set allocation.
+   * Lazy schemas override `parse` to add cycle protection.
+   */
   parse(input: unknown, options?: ParseOptions): TOutput {
     const ctx = createParseContext(options, localeRegistry, defaultLang, errorMap);
-    const result = this._parseGuarded(input, ctx, new Set<object>());
+    const result = this._parseWithContext(input, ctx);
     if (!result.ok || ctx.issues.length > 0) throw new ValdixError(ctx.issues);
     return result.value;
   }
@@ -66,7 +60,7 @@ export abstract class Schema<TOutput = unknown, TInput = TOutput> {
   /** Parse a value, returning a tagged result. */
   safeParse(input: unknown, options?: ParseOptions): SafeParseResult<TOutput> {
     const ctx = createParseContext(options, localeRegistry, defaultLang, errorMap);
-    const result = this._parseGuarded(input, ctx, new Set<object>());
+    const result = this._parseWithContext(input, ctx);
     if (result.ok && ctx.issues.length === 0) return { success: true, data: result.value };
     return { success: false, errors: ctx.issues };
   }
@@ -140,9 +134,13 @@ export abstract class Schema<TOutput = unknown, TInput = TOutput> {
   or<T extends Schema<any, any>>(schema: T): UnionSchema<[Schema<unknown, unknown>, T]> {
     return new UnionSchema([this as unknown as Schema<unknown, unknown>, schema]);
   }
-  /** Create an intersection with another schema. */
-  and<T extends Schema<any, any>>(schema: T): IntersectionSchema<Schema<unknown, unknown>, T> {
-    return new IntersectionSchema(this as unknown as Schema<unknown, unknown>, schema);
+  /** Create an intersection with another schema (or chain with `.and(...)`). */
+  and<T extends Schema<any, any>>(schema: T): IntersectionSchema<[this, T]> {
+    return new IntersectionSchema([this as unknown as Schema<unknown, unknown>, schema] as [this, T]);
+  }
+  /** Create an intersection with multiple schemas (variadic). */
+  andAll<T extends Schema<any, any>[]>(...schemas: T): IntersectionSchema<[this, ...T]> {
+    return new IntersectionSchema([this as unknown as Schema<unknown, unknown>, ...schemas] as [this, ...T]);
   }
   /** Add a custom check; return `false` or a string/IssueInput to fail. */
   refine(check: (value: TOutput) => boolean | string | IssueInput): RefineSchema<TOutput, TInput> {
@@ -191,7 +189,9 @@ export abstract class Schema<TOutput = unknown, TInput = TOutput> {
 export class OptionalSchema<T extends Schema<any, any>> extends Schema<T["_output"] | undefined, T["_input"] | undefined> {
   constructor(readonly inner: T) { super(); }
   _parse(input: unknown, ctx: ParseContext): InternalResult<T["_output"] | undefined> {
-    if (input === undefined) return ok(undefined);
+    // Treat undefined OR empty string as "not provided" — empty strings
+    // are a soft form of missing in form fields.
+    if (input === undefined || input === "") return ok(undefined);
     return this.inner._parseWithContext(input, ctx);
   }
 }
@@ -210,10 +210,10 @@ export class DefaultSchema<TOutput, TInput> extends Schema<TOutput, TInput | und
     private readonly fallback: TOutput | (() => TOutput)
   ) { super(); }
   _parse(input: unknown, ctx: ParseContext): InternalResult<TOutput> {
-    const value = input === undefined
+    const value = (input === undefined || input === "")
       ? typeof this.fallback === "function" ? (this.fallback as () => TOutput)() : this.fallback
       : input;
-    return this.inner._parseWithContext(value, ctx);
+    return this.inner._parseWithContext(value as TInput, ctx);
   }
 }
 
@@ -342,15 +342,23 @@ export class UnionSchema<T extends Schema<any, any>[]> extends Schema<
   }
 }
 
-export class IntersectionSchema<A extends Schema<any, any>, B extends Schema<any, any>>
-  extends Schema<A["_output"] & B["_output"]> {
-  constructor(private readonly left: A, private readonly right: B) { super(); }
-  _parse(input: unknown, ctx: ParseContext): InternalResult<A["_output"] & B["_output"]> {
-    const left = this.left._parseWithContext(input, ctx);
-    if (!left.ok) return invalid;
-    const right = this.right._parseWithContext(left.value, ctx);
-    if (!right.ok) return invalid;
-    return ok({ ...left.value, ...right.value } as A["_output"] & B["_output"]);
+export class IntersectionSchema<TSchemas extends Schema<any, any>[]>
+  extends Schema<TSchemas extends [] ? unknown : UnionToIntersection<TSchemas[number]["_output"]>>
+{
+  constructor(private readonly schemas: TSchemas) { super(); }
+  _parse(input: unknown, ctx: ParseContext): InternalResult<any> {
+    let merged: any = input;
+    for (let i = 0; i < this.schemas.length; i++) {
+      const schema = this.schemas[i]!;
+      const r = schema._parseWithContext(merged, ctx);
+      if (!r.ok) return invalid;
+      if (r.value && typeof r.value === "object" && !Array.isArray(r.value)) {
+        merged = { ...merged, ...r.value };
+      } else {
+        merged = r.value;
+      }
+    }
+    return ok(merged);
   }
 }
 

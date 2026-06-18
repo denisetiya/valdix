@@ -1,23 +1,27 @@
-import type { ValdixIssue, IssueInput, ParseOptions, LocaleCatalog, ErrorMap } from "./types.js";
+import type { ValdixIssue, IssueInput, ParseOptions, LocaleCatalog, ErrorMap, PathSegment } from "./types.js";
 import { resolveMessage, fieldFromPath, interpolate } from "./messages.js";
 
 export interface ParseContext {
   lang: string;
   abortEarly: boolean;
-  path: (string | number)[];
+  /** Mutable path stack — schemas push/pop on entry/exit. addIssue reads directly. */
+  pathStack: (string | number)[];
   issues: ValdixIssue[];
-  locales: Map<string, LocaleCatalog>;
+  locales: LocaleRegistrar;
   errorMap?: ErrorMap;
   descriptionStack: string[];
   addIssue: (issue: IssueInput) => void;
+  /** Isolated fork for union/intersection — discards issues on failure. */
   fork: () => ParseContext;
-  childContext: (key: string) => ParseContext;
 }
+
+// Plain object instead of Map — ~2× faster lookup, smaller allocation
+export type LocaleRegistrar = Record<string, LocaleCatalog>;
 
 export const createContext = (
   lang: string,
   abortEarly: boolean,
-  locales: Map<string, LocaleCatalog>,
+  locales: LocaleRegistrar,
   errorMap?: ErrorMap,
   descriptionStack: string[] = [],
   isolatedIssues: boolean = false
@@ -26,24 +30,38 @@ export const createContext = (
   const ctx: ParseContext = {
     lang,
     abortEarly,
-    path: [],
+    pathStack: [],
     issues: isolatedIssues ? [] : issues,
     locales,
     errorMap,
     descriptionStack,
     addIssue(issue: IssueInput) {
-      const fullPath = issue.path
-        ? [...ctx.path, ...issue.path.map(String)]
-        : [...ctx.path];
+      // Build a snapshot of the current path for this issue.
+      const stackLen = ctx.pathStack.length;
+      const issuePath: PathSegment[] | undefined = issue.path;
+      const issuePathLen = issuePath === undefined ? 0 : issuePath.length;
+      let fullPath: (string | number)[];
+      if (stackLen === 0 && issuePathLen === 0) {
+        fullPath = EMPTY_PATH;
+      } else if (issuePathLen === 0) {
+        fullPath = stackLen === 0 ? [] : ctx.pathStack.slice();
+      } else if (stackLen === 0) {
+        fullPath = (issuePath as (string | number)[]).slice();
+      } else {
+        fullPath = new Array(stackLen + issuePathLen);
+        for (let i = 0; i < stackLen; i++) fullPath[i] = ctx.pathStack[i]!;
+        for (let i = 0; i < issuePathLen; i++) fullPath[stackLen + i] = issuePath![i] as string | number;
+      }
 
       const description = ctx.descriptionStack[ctx.descriptionStack.length - 1];
       const field = fieldFromPath(fullPath);
 
-      const base: Omit<ValdixIssue, "message"> = {
+      const base: ValdixIssue = {
         code: issue.code,
         path: fullPath,
         field,
         description,
+        message: "", // filled below
         expected: issue.expected as string | undefined,
         received: issue.received as string | undefined,
         minimum: issue.minimum as number | undefined,
@@ -60,35 +78,35 @@ export const createContext = (
         constructorName: issue.constructorName as string | undefined,
       };
 
-      const defaultError = resolveMessage(base, ctx.lang, ctx.locales, ctx.errorMap);
-      const fieldLabel = description ?? (field ? field.replace(/[_-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase() : "");
-      const message = issue.message
-        ? interpolate(issue.message, {
-            field: fieldLabel,
-            path: fullPath.map(String).join("."),
-            expected: String(issue.expected ?? ""),
-            received: String(issue.received ?? ""),
-            minimum: String(issue.minimum ?? ""),
-            maximum: String(issue.maximum ?? ""),
-            validation: String(issue.validation ?? ""),
-            literal: String(issue.literal ?? ""),
-            discriminator: String(issue.discriminator ?? ""),
-            keys: (Array.isArray(issue.keys) ? issue.keys : []).map(String).join(", "),
-            options: (Array.isArray(issue.options) ? issue.options : []).map(String).join(", "),
-          })
-        : defaultError;
-      ctx.issues.push({ ...base, message });
+      let message: string;
+      if (issue.message) {
+        // Compute fieldLabel only when needed for interpolation
+        const fieldLabel = description ?? (field ? field.replace(/[_-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase() : "");
+        message = interpolate(issue.message, {
+          field: fieldLabel,
+          path: fullPath.map(String).join("."),
+          expected: issue.expected == null ? "" : String(issue.expected as any),
+          received: issue.received == null ? "" : String(issue.received as any),
+          minimum: issue.minimum == null ? "" : String(issue.minimum as any),
+          maximum: issue.maximum == null ? "" : String(issue.maximum as any),
+          validation: (issue.validation as string | undefined) ?? "",
+          literal: issue.literal == null ? "" : String(issue.literal as any),
+          discriminator: (issue.discriminator as string | undefined) ?? "",
+          keys: Array.isArray(issue.keys) ? issue.keys.join(", ") : "",
+          options: Array.isArray(issue.options) ? issue.options.join(", ") : "",
+        });
+      } else {
+        // Fast path: just resolve the default message
+        message = resolveMessage(base, ctx.lang, ctx.locales, ctx.errorMap);
+      }
+
+      base.message = message;
+      ctx.issues.push(base);
     },
     fork() {
       const f = createContext(ctx.lang, ctx.abortEarly, ctx.locales, ctx.errorMap, ctx.descriptionStack, true);
-      f.path = [...ctx.path];
+      // fork does NOT share pathStack — child builds its own
       return f;
-    },
-    childContext(key: string) {
-      const child = createContext(ctx.lang, ctx.abortEarly, ctx.locales, ctx.errorMap, ctx.descriptionStack);
-      child.path = [...ctx.path, key];
-      child.issues = ctx.issues; // share - issues flow to parent
-      return child;
     },
   };
   return ctx;
@@ -96,7 +114,7 @@ export const createContext = (
 
 export const createParseContext = (
   options: ParseOptions | undefined,
-  locales: Map<string, LocaleCatalog>,
+  locales: LocaleRegistrar,
   defaultLang: string,
   errorMap?: ErrorMap
 ): ParseContext => {
@@ -114,3 +132,6 @@ export type InternalResult<T> = InternalOk<T> | InternalFail;
 
 export const ok = <T>(value: T): InternalOk<T> => ({ ok: true, value });
 export const invalid: InternalFail = { ok: false };
+
+// Shared empty array for paths — avoid allocating one per issue at root.
+const EMPTY_PATH: (string | number)[] = Object.freeze([]) as unknown as (string | number)[];

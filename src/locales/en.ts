@@ -1,7 +1,10 @@
 import type { LocaleCatalog } from "../core/types.js";
 
+const humanize = (s: string) =>
+  s.replace(/[_-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+
 export const EN: LocaleCatalog = {
-  required: () => "This field is required",
+  required: (i) => `${i.field ? humanize(i.field) : "This field"} is required`,
   invalid_type: (i) => `Expected ${i.expected ?? "valid value"}, got ${i.received ?? "unknown"}`,
   invalid_literal: (i) => `Expected literal ${String(i.literal)}`,
   invalid_enum_value: (i) => `Expected one of: ${(i.options ?? []).map(String).join(", ")}`,
@@ -42,6 +45,10 @@ export const EN: LocaleCatalog = {
     if (i.validation === "url") return "This doesn't look like a valid URL";
     if (i.validation === "uuid") return "This doesn't look like a valid UUID";
     if (i.validation === "regex") return "This format is not valid";
+    if (i.validation === "alpha") return "Letters only (a-z, A-Z)";
+    if (i.validation === "numeric") return "Digits only (0-9)";
+    if (i.validation === "symbol") return "Symbols only, no letters or digits";
+    if (i.validation === "phone") return "That doesn't look like a valid phone number";
     return "Invalid format";
   },
   invalid_number: () => "Please enter a valid number",

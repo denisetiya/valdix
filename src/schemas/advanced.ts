@@ -43,10 +43,12 @@ export class SetSchema<T extends Schema<any, any>> extends Schema<Set<T["_output
       return invalid;
     }
     const out = new Set<T["_output"]>();
+    const pathLen = ctx.pathStack.length;
     let i = 0;
     for (const val of input) {
-      const child = ctx.childContext(String(i++));
-      const parsed = this.item._parse(val, child);
+      ctx.pathStack.push(i++);
+      const parsed = this.item._parseWithContext(val, ctx);
+      ctx.pathStack.length = pathLen;
       if (!parsed.ok) { if (ctx.abortEarly) return invalid; continue; }
       out.add(parsed.value);
     }
@@ -66,14 +68,17 @@ export class MapSchema<TKey extends Schema<any, any>, TVal extends Schema<any, a
       return invalid;
     }
     const out = new Map<TKey["_output"], TVal["_output"]>();
+    const pathLen = ctx.pathStack.length;
     let i = 0;
     for (const [k, v] of input) {
-      const kCtx = ctx.childContext(`${i}.key`);
-      const parsedKey = this.keySchema._parse(k, kCtx);
-      if (!parsedKey.ok) { if (ctx.abortEarly) return invalid; continue; }
-      const vCtx = ctx.childContext(`${i}.value`);
-      const parsedVal = this.valSchema._parse(v, vCtx);
-      if (!parsedVal.ok) { if (ctx.abortEarly) return invalid; continue; }
+      ctx.pathStack.push(`${i}.key`);
+      const parsedKey = this.keySchema._parseWithContext(k, ctx);
+      ctx.pathStack.length = pathLen;
+      if (!parsedKey.ok) { if (ctx.abortEarly) return invalid; i++; continue; }
+      ctx.pathStack.push(`${i}.value`);
+      const parsedVal = this.valSchema._parseWithContext(v, ctx);
+      ctx.pathStack.length = pathLen;
+      if (!parsedVal.ok) { if (ctx.abortEarly) return invalid; i++; continue; }
       out.set(parsedKey.value, parsedVal.value);
       i++;
     }

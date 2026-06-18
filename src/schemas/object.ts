@@ -107,42 +107,69 @@ export class ObjectSchema<T extends ObjectShape>
     const source = input as Record<string, unknown>;
     const output: Record<string, unknown> = {};
     let hasErr = false;
+    const pathLen = ctx.pathStack.length;
+    const shapeKeys = Object.keys(this.shape);
+    const shapeLen = shapeKeys.length;
 
-    for (const key of Object.keys(this.shape)) {
+    for (let i = 0; i < shapeLen; i++) {
+      const key = shapeKeys[i]!;
       const schema = this.shape[key]! as Schema;
       if (!hasOwn(source, key)) {
+        // Probe for optional/default: if undefined is acceptable, skip
         const probe = ctx.fork();
         const fallback = schema._parseWithContext(undefined, probe);
         if (fallback.ok && probe.issues.length === 0) {
           if (typeof fallback.value !== "undefined") output[key] = fallback.value;
           continue;
         }
-        const child = ctx.childContext(key);
-        child.addIssue({ code: "required" });
+        ctx.pathStack.push(key);
+        ctx.addIssue({ code: "required" });
+        ctx.pathStack.length = pathLen;
         hasErr = true;
         if (ctx.abortEarly) return invalid;
         continue;
       }
-      const child = ctx.childContext(key);
-      const parsed = schema._parseWithContext(source[key], child);
+      // Fast path: skip description wrapper when child has no description
+      ctx.pathStack.push(key);
+      const value = source[key];
+      const parsed = schema.description
+        ? schema._parseWithContext(value, ctx)
+        : schema._parse(value, ctx);
+      ctx.pathStack.length = pathLen;
       if (!parsed.ok) { hasErr = true; if (ctx.abortEarly) return invalid; continue; }
       if (typeof parsed.value !== "undefined") output[key] = parsed.value;
     }
 
-    const srcKeys = Object.keys(source);
-    const unknown = srcKeys.filter((k) => !hasOwn(this.shape, k));
     if (this._catchall) {
-      for (const k of unknown) {
-        const child = ctx.childContext(k);
-        const parsed = (this._catchall as any)._parseWithContext(source[k], child);
+      const srcKeys = Object.keys(source);
+      for (let i = 0; i < srcKeys.length; i++) {
+        const k = srcKeys[i]!;
+        if (hasOwn(this.shape, k)) continue;
+        ctx.pathStack.push(k);
+        const v = source[k];
+        const parsed = (this._catchall as any).description
+          ? (this._catchall as any)._parseWithContext(v, ctx)
+          : (this._catchall as any)._parse(v, ctx);
+        ctx.pathStack.length = pathLen;
         if (parsed.ok) output[k] = parsed.value;
         else { hasErr = true; if (ctx.abortEarly) return invalid; }
       }
-    } else if (this.policy === "strict" && unknown.length > 0) {
-      ctx.addIssue({ code: "unknown_keys", keys: unknown });
-      hasErr = true;
-    } else if (this.policy === "passthrough") {
-      for (const k of unknown) output[k] = source[k];
+    } else if (this.policy !== "strip") {
+      const allKeys = Object.keys(source);
+      const extraKeys: string[] = [];
+      for (let i = 0; i < allKeys.length; i++) {
+        const k = allKeys[i]!;
+        if (!hasOwn(this.shape, k)) extraKeys.push(k);
+      }
+      if (this.policy === "strict" && extraKeys.length > 0) {
+        ctx.addIssue({ code: "unknown_keys", keys: extraKeys });
+        hasErr = true;
+      } else if (this.policy === "passthrough") {
+        for (let i = 0; i < extraKeys.length; i++) {
+          const k = extraKeys[i]!;
+          output[k] = source[k];
+        }
+      }
     }
 
     if (hasErr) return invalid;

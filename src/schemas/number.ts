@@ -6,12 +6,15 @@ import { typeOf } from "../core/utils.js";
 type NumberRule =
   | { kind: "min"; value: number }
   | { kind: "max"; value: number }
+  | { kind: "lt"; value: number }
+  | { kind: "gt"; value: number }
   | { kind: "int" }
   | { kind: "positive" }
   | { kind: "nonnegative" }
   | { kind: "negative" }
   | { kind: "nonpositive" }
   | { kind: "finite" }
+  | { kind: "safe" }
   | { kind: "multipleOf"; value: number };
 
 export class NumberSchema extends Schema<number> {
@@ -20,12 +23,15 @@ export class NumberSchema extends Schema<number> {
 
   min(n: number): NumberSchema { return this.with({ kind: "min", value: n }); }
   max(n: number): NumberSchema { return this.with({ kind: "max", value: n }); }
+  lt(n: number): NumberSchema { return this.with({ kind: "lt", value: n }); }
+  gt(n: number): NumberSchema { return this.with({ kind: "gt", value: n }); }
   int(): NumberSchema { return this.with({ kind: "int" }); }
   positive(): NumberSchema { return this.with({ kind: "positive" }); }
   nonnegative(): NumberSchema { return this.with({ kind: "nonnegative" }); }
   negative(): NumberSchema { return this.with({ kind: "negative" }); }
   nonpositive(): NumberSchema { return this.with({ kind: "nonpositive" }); }
   finite(): NumberSchema { return this.with({ kind: "finite" }); }
+  safe(): NumberSchema { return this.with({ kind: "safe" }); }
   multipleOf(n: number): NumberSchema { return this.with({ kind: "multipleOf", value: n }); }
 
   _parse(input: unknown, ctx: ParseContext): InternalResult<number> {
@@ -64,6 +70,18 @@ export class NumberSchema extends Schema<number> {
       }
       if (rule.kind === "finite" && !Number.isFinite(input)) {
         ctx.addIssue({ code: "invalid_number", validation: "finite" });
+        if (ctx.abortEarly) return invalid; continue;
+      }
+      if (rule.kind === "safe" && (input < Number.MIN_SAFE_INTEGER || input > Number.MAX_SAFE_INTEGER)) {
+        ctx.addIssue({ code: "invalid_number", validation: "safe" });
+        if (ctx.abortEarly) return invalid; continue;
+      }
+      if (rule.kind === "gt" && input <= rule.value) {
+        ctx.addIssue({ code: "too_small", kind: "number", minimum: rule.value, inclusive: false });
+        if (ctx.abortEarly) return invalid; continue;
+      }
+      if (rule.kind === "lt" && input >= rule.value) {
+        ctx.addIssue({ code: "too_big", kind: "number", maximum: rule.value, inclusive: false });
         if (ctx.abortEarly) return invalid; continue;
       }
       if (rule.kind === "multipleOf" && input % rule.value !== 0) {

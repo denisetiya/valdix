@@ -34,6 +34,7 @@ export class StringSchema extends Schema<string> {
   endsWith(s: string): StringSchema { return this.with({ kind: "endsWith", value: s }); }
   includes(s: string): StringSchema { return this.with({ kind: "includes", value: s }); }
   regex(pattern: RegExp): StringSchema { return this.with({ kind: "regex", value: pattern }); }
+  nonempty(msg?: string): StringSchema { return this.min(1); }
   trim(): TransformSchema<string, string, string> { return new TransformSchema(this, (s) => s.trim()); }
   lowercase(): TransformSchema<string, string, string> { return new TransformSchema(this, (s) => s.toLowerCase()); }
   uppercase(): TransformSchema<string, string, string> { return new TransformSchema(this, (s) => s.toUpperCase()); }

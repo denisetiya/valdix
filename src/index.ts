@@ -10,7 +10,13 @@ export type {
 
 export type { Infer, Input } from "./core/schema.js";
 
-export { Schema, ValdixError } from "./core/schema.js";
+export {
+  Schema, ValdixError,
+  OptionalSchema, NullableSchema, DefaultSchema, CatchSchema,
+  BrandSchema, TransformSchema, PipeSchema,
+  UnionSchema, IntersectionSchema,
+} from "./core/schema.js";
+
 export { useLang, registerLocale } from "./core/schema.js";
 export { EN, ID, JP } from "./locales/index.js";
 
@@ -19,44 +25,35 @@ import { EN } from "./locales/en.js";
 import { ID } from "./locales/id.js";
 import { JP } from "./locales/jp.js";
 import {
-  string, number, boolean, date,
-  literal, enumValues,
+  string, number, boolean, bigint, date,
+  literal, enumValues, instanceOf,
   any, unknown, never, nullType, undefinedType, voidType,
   object, strictObject,
-  array, tuple, record,
+  array, tuple, record, set, map,
   union, intersection,
   discriminatedUnion, lazy,
+  preprocess, coerce,
 } from "./factories.js";
 
-// Register built-in locales on import
 registerLocale("en", EN);
 registerLocale("id", ID);
 registerLocale("jp", JP);
 
 export const v = {
-  string,
-  number,
-  boolean,
-  date,
+  string, number, boolean, bigint, date,
   literal,
   enum: enumValues,
-  any,
-  unknown,
-  never,
+  instanceOf,
+  any, unknown, never,
   null: nullType,
   undefined: undefinedType,
   void: voidType,
-  object,
-  strictObject,
-  array,
-  tuple,
-  record,
-  union,
-  intersection,
-  discriminatedUnion,
-  lazy,
-  useLang,
-  registerLocale,
+  object, strictObject,
+  array, tuple, record, set, map,
+  union, intersection,
+  discriminatedUnion, lazy,
+  preprocess, coerce,
+  useLang, registerLocale,
 };
 
 export default v;

@@ -55,6 +55,7 @@ export abstract class Schema<TOutput = unknown, TInput = TOutput> {
 
   abstract _parse(input: unknown, ctx: ParseContext): InternalResult<TOutput>;
 
+  /** Parse a value, throwing on failure. */
   parse(input: unknown, options?: ParseOptions): TOutput {
     const ctx = createParseContext(options, localeRegistry, defaultLang, errorMap);
     const result = this._parseGuarded(input, ctx, new Set<object>());
@@ -62,6 +63,7 @@ export abstract class Schema<TOutput = unknown, TInput = TOutput> {
     return result.value;
   }
 
+  /** Parse a value, returning a tagged result. */
   safeParse(input: unknown, options?: ParseOptions): SafeParseResult<TOutput> {
     const ctx = createParseContext(options, localeRegistry, defaultLang, errorMap);
     const result = this._parseGuarded(input, ctx, new Set<object>());
@@ -69,6 +71,7 @@ export abstract class Schema<TOutput = unknown, TInput = TOutput> {
     return { success: false, errors: ctx.issues };
   }
 
+  /** Parse a value asynchronously, throwing on failure. Supports async refinements. */
   async parseAsync(input: unknown, options?: ParseOptions): Promise<TOutput> {
     const ctx = createParseContext(options, localeRegistry, defaultLang, errorMap);
     const result = await this._parseAsync(input, ctx, new Set<object>());
@@ -76,6 +79,7 @@ export abstract class Schema<TOutput = unknown, TInput = TOutput> {
     return result.value;
   }
 
+  /** Parse a value asynchronously, returning a tagged result. */
   async safeParseAsync(input: unknown, options?: ParseOptions): Promise<SafeParseResult<TOutput>> {
     const ctx = createParseContext(options, localeRegistry, defaultLang, errorMap);
     const result = await this._parseAsync(input, ctx, new Set<object>());
@@ -98,58 +102,75 @@ export abstract class Schema<TOutput = unknown, TInput = TOutput> {
   }
 
   // ── Modifiers ──
+
+  /** Allow `undefined` in addition to the current type. */
   optional(): OptionalSchema<Schema<TOutput, TInput>> {
     if (this instanceof OptionalSchema) return this as unknown as OptionalSchema<Schema<TOutput, TInput>>;
     return new OptionalSchema(this as unknown as Schema<TOutput, TInput>);
   }
+  /** Allow `null` in addition to the current type. */
   nullable(): NullableSchema<Schema<TOutput, TInput>> {
     if (this instanceof NullableSchema) return this as unknown as NullableSchema<Schema<TOutput, TInput>>;
     return new NullableSchema(this as unknown as Schema<TOutput, TInput>);
   }
+  /** Allow both `null` and `undefined`. */
   nullish(): OptionalSchema<NullableSchema<Schema<TOutput, TInput>>> {
     if (this instanceof OptionalSchema && this.inner instanceof NullableSchema) {
       return this as unknown as OptionalSchema<NullableSchema<Schema<TOutput, TInput>>>;
     }
     return new OptionalSchema(new NullableSchema(this as unknown as Schema<TOutput, TInput>));
   }
+  /** Use the given value (or call the factory) when input is `undefined`. */
   default(value: TOutput | (() => TOutput)): DefaultSchema<TOutput, TInput> {
     return new DefaultSchema(this as unknown as Schema<TOutput, TInput>, value);
   }
+  /** Return the given value (or call the factory) when validation fails. */
   catch(value: TOutput | ((err: ValdixIssue[]) => TOutput)): CatchSchema<TOutput, TInput> {
     return new CatchSchema(this as unknown as Schema<TOutput, TInput>, value);
   }
+  /** Transform the output to a new type. */
   transform<TNext>(fn: (value: TOutput) => TNext): TransformSchema<TOutput, TInput, TNext> {
     return new TransformSchema(this as unknown as Schema<TOutput, TInput>, fn);
   }
+  /** Pipe the output into another schema. */
   pipe<TNext>(schema: Schema<TNext, TOutput>): PipeSchema<TOutput, TInput, TNext> {
     return new PipeSchema(this as unknown as Schema<TOutput, TInput>, schema);
   }
+  /** Create a union with another schema. */
   or<T extends Schema<any, any>>(schema: T): UnionSchema<[Schema<unknown, unknown>, T]> {
     return new UnionSchema([this as unknown as Schema<unknown, unknown>, schema]);
   }
+  /** Create an intersection with another schema. */
   and<T extends Schema<any, any>>(schema: T): IntersectionSchema<Schema<unknown, unknown>, T> {
     return new IntersectionSchema(this as unknown as Schema<unknown, unknown>, schema);
   }
+  /** Add a custom check; return `false` or a string/IssueInput to fail. */
   refine(check: (value: TOutput) => boolean | string | IssueInput): RefineSchema<TOutput, TInput> {
     return new RefineSchema(this as unknown as Schema<TOutput, TInput>, check);
   }
+  /** Add a multi-issue refinement via `ctx.addIssue()`. Supports async. */
   superRefine(check: (value: TOutput, ctx: SuperRefineCtx) => void | Promise<void>): SuperRefineSchema<TOutput, TInput> {
     return new SuperRefineSchema(this as unknown as Schema<TOutput, TInput>, check);
   }
+  /** Create a nominal/branded type. */
   brand<TBrand extends string>(_name?: TBrand): BrandSchema<TOutput, TInput, TBrand> {
     return new BrandSchema(this as unknown as Schema<TOutput, TInput>);
   }
+  /** Attach a human-readable description to the schema (used in errors and JSON Schema). */
   describe(text: string): this {
     this.description = text;
     return this;
   }
+  /** Freeze the schema (runtime). */
   readonly(): this {
     Object.freeze(this);
     return this;
   }
+  /** Convert to a JSON Schema document. */
   toJSONSchema(): unknown {
     return jsonSchemaOf(this);
   }
+  /** Standard Schema interop. */
   "~standard"<I = TInput, O = TOutput>(): StandardSchemaProps<I, O> {
     const schema = this;
     return {

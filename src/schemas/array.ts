@@ -18,22 +18,27 @@ export class ArraySchema<T extends Schema<any, any>>
 
   constructor(private readonly item: T) { super(); }
 
+  /** Require at least n items. */
   min(n: number, message?: string): ArraySchema<T> {
     this.rules.push({ kind: "min", value: n, message });
     this._min = n;
     return this;
   }
+  /** Require at most n items. */
   max(n: number, message?: string): ArraySchema<T> {
     this.rules.push({ kind: "max", value: n, message });
     this._max = n;
     return this;
   }
+  /** Require exactly n items. */
   length(n: number, message?: string): ArraySchema<T> {
     this.rules.push({ kind: "length", value: n, message });
     this._min = n; this._max = n;
     return this;
   }
+  /** Shorthand for `.min(1)`. */
   nonempty(message?: string): ArraySchema<T> { return this.min(1, message); }
+  /** Require all items to be unique. */
   unique(): ArraySchema<T> {
     this.rules.push({ kind: "unique" });
     this._unique = true;

@@ -68,42 +68,75 @@ export class StringSchema extends Schema<string> {
     return s;
   }
 
+  /** Require a minimum string length.
+   * @param n minimum number of characters
+   * @param message optional custom error message. Use `{{field}}` for the field label.
+   * @example
+   * ```ts
+   * v.string().min(3)
+   * v.string().min(3, "Minimal 3 karakter ya")
+   * ```
+   */
   min(n: number, message?: string): StringSchema {
     const s = this.with({ kind: "min", value: n, message });
     s._minLen = n;
     return s;
   }
+  /** Require a maximum string length. */
   max(n: number, message?: string): StringSchema {
     const s = this.with({ kind: "max", value: n, message });
     s._maxLen = n;
     return s;
   }
+  /** Require an exact string length. */
   length(n: number, message?: string): StringSchema { return this.with({ kind: "length", value: n, message }); }
+  /** Validate as an email address (basic format check). */
   email(): StringSchema { const s = this.with({ kind: "email" }); s.customValidation = { validation: "email", format: { format: "email" } }; return s; }
+  /** Validate as a URL. */
   url(): StringSchema { const s = this.with({ kind: "url" }); s.customValidation = { validation: "url", format: { format: "uri" } }; return s; }
+  /** Validate as a UUID v1-v5. */
   uuid(): StringSchema { const s = this.with({ kind: "uuid" }); s.customValidation = { validation: "uuid", format: { format: "uuid" } }; return s; }
+  /** Validate as a CUID v1. */
   cuid(): StringSchema { const s = this.with({ kind: "cuid" }); s.customValidation = { validation: "cuid", format: { pattern: CUID_RE.source } }; return s; }
+  /** Validate as a CUID v2. */
   cuid2(): StringSchema { const s = this.with({ kind: "cuid2" }); s.customValidation = { validation: "cuid2", format: { pattern: CUID2_RE.source } }; return s; }
+  /** Validate as a ULID. */
   ulid(): StringSchema { const s = this.with({ kind: "ulid" }); s.customValidation = { validation: "ulid", format: { pattern: ULID_RE.source } }; return s; }
+  /** Validate as a Nano ID (21-char base64url). */
   nanoid(): StringSchema { const s = this.with({ kind: "nanoid" }); s.customValidation = { validation: "nanoid", format: { pattern: NANOID_RE.source } }; return s; }
+  /** Validate as an IPv4 or IPv6 address. Pass `4` or `6` to restrict. */
   ip(version?: 4 | 6): StringSchema {
     const s = this.with({ kind: "ip", version });
     s.customValidation = { validation: version === 6 ? "ipv6" : version === 4 ? "ipv4" : "ip", format: { format: version === 6 ? "ipv6" : "ipv4" } };
     return s;
   }
+  /** Validate as a CIDR notation (e.g. `192.168.1.0/24`). */
   cidr(): StringSchema { return this.with({ kind: "cidr" }); }
+  /** Validate as base64-encoded. */
   base64(): StringSchema { return this.with({ kind: "base64" }); }
+  /** Validate that the string contains only emoji characters. */
   emoji(): StringSchema { return this.with({ kind: "emoji" }); }
+  /** Validate as an ISO 8601 datetime. */
   datetime(): StringSchema { return this.with({ kind: "datetime" }); }
+  /** Validate as `YYYY-MM-DD`. */
   date(): StringSchema { return this.with({ kind: "date" }); }
+  /** Validate as `HH:MM:SS` 24-hour time. */
   time(): StringSchema { return this.with({ kind: "time" }); }
+  /** Require the string to start with `s2`. */
   startsWith(s2: string): StringSchema { return this.with({ kind: "startsWith", value: s2 }); }
+  /** Require the string to end with `s2`. */
   endsWith(s2: string): StringSchema { return this.with({ kind: "endsWith", value: s2 }); }
+  /** Require the string to include `s2`. */
   includes(s2: string): StringSchema { return this.with({ kind: "includes", value: s2 }); }
+  /** Validate against a regular expression. */
   regex(pattern: RegExp, message?: string): StringSchema { return this.with({ kind: "regex", value: pattern, message }); }
+  /** Shorthand for `.min(1)`. */
   nonempty(message?: string): StringSchema { return this.min(1, message); }
+  /** Transform: trim whitespace. */
   trim(): TransformSchema<string, string, string> { return new TransformSchema(this, (s) => s.trim()); }
+  /** Transform: lowercase. */
   lowercase(): TransformSchema<string, string, string> { return new TransformSchema(this, (s) => s.toLowerCase()); }
+  /** Transform: uppercase. */
   uppercase(): TransformSchema<string, string, string> { return new TransformSchema(this, (s) => s.toUpperCase()); }
 
   _toJSONSchema(): unknown {

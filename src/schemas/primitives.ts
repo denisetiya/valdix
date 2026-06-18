@@ -29,7 +29,9 @@ export class DateSchema extends Schema<Date> {
     }
   }
 
+  /** Require the date to be ≥ the given date. */
   min(date: Date, message?: string): DateSchema { return new DateSchema([...this.rules, { kind: "min", value: date, message }]); }
+  /** Require the date to be ≤ the given date. */
   max(date: Date, message?: string): DateSchema { return new DateSchema([...this.rules, { kind: "max", value: date, message }]); }
 
   _toJSONSchema(): unknown {

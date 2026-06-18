@@ -38,17 +38,29 @@ export class NumberSchema extends Schema<number> {
   }
   private with(rule: NumberRule): NumberSchema { return new NumberSchema([...this.rules, rule]); }
 
+  /** Require number ≥ n (inclusive). */
   min(n: number, message?: string): NumberSchema { return this.with({ kind: "min", value: n, message }); }
+  /** Require number ≤ n (inclusive). */
   max(n: number, message?: string): NumberSchema { return this.with({ kind: "max", value: n, message }); }
+  /** Require number < n (exclusive). */
   lt(n: number, message?: string): NumberSchema { return this.with({ kind: "lt", value: n, message }); }
+  /** Require number > n (exclusive). */
   gt(n: number, message?: string): NumberSchema { return this.with({ kind: "gt", value: n, message }); }
+  /** Require an integer. */
   int(): NumberSchema { return this.with({ kind: "int" }); }
+  /** Require number > 0. */
   positive(): NumberSchema { return this.with({ kind: "positive" }); }
+  /** Require number ≥ 0. */
   nonnegative(): NumberSchema { return this.with({ kind: "nonnegative" }); }
+  /** Require number < 0. */
   negative(): NumberSchema { return this.with({ kind: "negative" }); }
+  /** Require number ≤ 0. */
   nonpositive(): NumberSchema { return this.with({ kind: "nonpositive" }); }
+  /** Reject `Infinity` and `NaN`. */
   finite(): NumberSchema { return this.with({ kind: "finite" }); }
+  /** Restrict to `Number.MIN_SAFE_INTEGER` … `MAX_SAFE_INTEGER`. */
   safe(): NumberSchema { return this.with({ kind: "safe" }); }
+  /** Require number to be a multiple of n. */
   multipleOf(n: number): NumberSchema { return this.with({ kind: "multipleOf", value: n }); }
 
   _toJSONSchema(): unknown {

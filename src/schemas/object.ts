@@ -30,32 +30,41 @@ export class ObjectSchema<T extends ObjectShape>
     this._catchall = catchall;
   }
 
+  /** Reject unknown keys. */
   strict(): ObjectSchema<T> { return new ObjectSchema(this.shape, "strict", this._catchall); }
+  /** Keep unknown keys in output. */
   passthrough(): ObjectSchema<T> { return new ObjectSchema(this.shape, "passthrough", this._catchall); }
+  /** Strip unknown keys from output (default). */
   strip(): ObjectSchema<T> { return new ObjectSchema(this.shape, "strip", this._catchall); }
+  /** Validate unknown keys against the given schema. */
   catchall(s: Schema<any, any>): ObjectSchema<T> { return new ObjectSchema(this.shape, "passthrough", s); }
-
+  /** Merge additional fields. */
   extend<U extends ObjectShape>(shape: U): ObjectSchema<T & U> {
     return new ObjectSchema({ ...this.shape, ...shape } as T & U, this.policy, this._catchall);
   }
+  /** Merge another object's shape. */
   merge<U extends ObjectShape>(other: ObjectSchema<U>): ObjectSchema<T & U> {
     return new ObjectSchema({ ...this.shape, ...other.shape } as T & U, this.policy, this._catchall);
   }
+  /** Keep only the given keys. */
   pick<K extends keyof T>(keys: K[]): ObjectSchema<Pick<T, K>> {
     const picked = {} as Pick<T, K>;
     for (const k of keys) picked[k] = this.shape[k]! as T[K];
     return new ObjectSchema(picked as any, this.policy, this._catchall);
   }
+  /** Remove the given keys. */
   omit<K extends keyof T>(keys: K[]): ObjectSchema<Omit<T, K>> {
     const omitted = { ...this.shape } as any;
     for (const k of keys) delete omitted[String(k)];
     return new ObjectSchema(omitted, this.policy, this._catchall);
   }
+  /** Make all fields optional. */
   partial(): ObjectSchema<{ [K in keyof T]: OptionalSchema<T[K]> }> {
     const shape = {} as any;
     for (const key of Object.keys(this.shape)) shape[key] = this.shape[key]!.optional();
     return new ObjectSchema(shape, this.policy, this._catchall);
   }
+  /** Make all fields (or only the given ones) required. */
   required(): ObjectSchema<RequiredShape<T>>;
   required<K extends keyof T>(keys: K[]): ObjectSchema<RequiredShapeByKeys<T, K>>;
   required(keys?: any[]): ObjectSchema<any> {
@@ -68,7 +77,7 @@ export class ObjectSchema<T extends ObjectShape>
     }
     return new ObjectSchema(shape, this.policy, this._catchall);
   }
-
+  /** Build an enum schema of the object's keys. */
   keyof(): EnumSchema<[Extract<keyof T, string>, ...Extract<keyof T, string>[]]> {
     const keys = Object.keys(this.shape) as Extract<keyof T, string>[];
     if (keys.length === 0) throw new Error("Cannot build keyof() from empty shape");

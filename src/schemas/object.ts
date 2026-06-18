@@ -136,8 +136,12 @@ export class ObjectSchema<T extends ObjectShape>
         ? schema._parseWithContext(value, ctx)
         : schema._parse(value, ctx);
       ctx.pathStack.length = pathLen;
-      if (!parsed.ok) { hasErr = true; if (ctx.abortEarly) return invalid; continue; }
-      if (typeof parsed.value !== "undefined") output[key] = parsed.value;
+      if (parsed.ok) {
+        output[key] = parsed.value;
+      } else {
+        hasErr = true;
+        if (ctx.abortEarly) return invalid;
+      }
     }
 
     if (this._catchall) {

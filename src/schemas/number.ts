@@ -23,16 +23,20 @@ export class NumberSchema extends Schema<number> {
   private _max?: number;
   private _exclusiveMin?: number;
   private _exclusiveMax?: number;
+  private _minMsg?: string;
+  private _maxMsg?: string;
+  private _gtMsg?: string;
+  private _ltMsg?: string;
   private _intOnly = false;
 
   constructor(rules: NumberRule[] = []) {
     super();
     this.rules = rules;
     for (const r of rules) {
-      if (r.kind === "min") this._min = r.value;
-      if (r.kind === "max") this._max = r.value;
-      if (r.kind === "gt") this._exclusiveMin = r.value;
-      if (r.kind === "lt") this._exclusiveMax = r.value;
+      if (r.kind === "min") { this._min = r.value; this._minMsg = r.message; }
+      if (r.kind === "max") { this._max = r.value; this._maxMsg = r.message; }
+      if (r.kind === "gt") { this._exclusiveMin = r.value; this._gtMsg = r.message; }
+      if (r.kind === "lt") { this._exclusiveMax = r.value; this._ltMsg = r.message; }
       if (r.kind === "int") this._intOnly = true;
     }
   }
@@ -78,6 +82,29 @@ export class NumberSchema extends Schema<number> {
       ctx.addIssue({ code: "invalid_type", expected: "number", received: typeOf(input) });
       return invalid;
     }
+    // Fast path: direct field checks. Avoids the per-rule object property access
+    // and lets V8 inline the common cases (int+min, min+max, etc.).
+    if (this._min !== undefined && input < this._min) {
+      ctx.addIssue({ code: "too_small", kind: "number", minimum: this._min, inclusive: true, message: this._minMsg });
+      return invalid;
+    }
+    if (this._max !== undefined && input > this._max) {
+      ctx.addIssue({ code: "too_big", kind: "number", maximum: this._max, inclusive: true, message: this._maxMsg });
+      return invalid;
+    }
+    if (this._exclusiveMin !== undefined && input <= this._exclusiveMin) {
+      ctx.addIssue({ code: "too_small", kind: "number", minimum: this._exclusiveMin, inclusive: false, message: this._gtMsg });
+      return invalid;
+    }
+    if (this._exclusiveMax !== undefined && input >= this._exclusiveMax) {
+      ctx.addIssue({ code: "too_big", kind: "number", maximum: this._exclusiveMax, inclusive: false, message: this._ltMsg });
+      return invalid;
+    }
+    if (this._intOnly && !Number.isInteger(input)) {
+      ctx.addIssue({ code: "invalid_number", validation: "integer" });
+      return invalid;
+    }
+    if (this.rules.length === 0) return ok(input);
     for (const rule of this.rules) {
       if (rule.kind === "min" && input < rule.value) {
         ctx.addIssue({ code: "too_small", kind: "number", minimum: rule.value, inclusive: true, message: rule.message });

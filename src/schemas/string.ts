@@ -68,12 +68,58 @@ export class StringSchema extends Schema<string> {
   private customValidation?: { validation: string; format: Record<string, unknown> };
   private _minLen?: number;
   private _maxLen?: number;
+  private _minMsg?: string;
+  private _maxMsg?: string;
+  // Hot-path flags for the most common format checks
+  private _hasEmail = false;
+  private _hasUrl = false;
+  private _hasUuid = false;
+  private _hasEmoji = false;
+  private _hasDate = false;
+  private _hasTime = false;
+  private _hasBase64 = false;
+  private _hasCuid = false;
+  private _hasCuid2 = false;
+  private _hasUlid = false;
+  private _hasNanoid = false;
+  private _hasIp?: 4 | 6 | "any";
+  private _hasDatetime = false;
+  private _hasCidr = false;
+  private _hasAlpha = false;
+  private _hasNumeric = false;
+  private _hasSymbol = false;
+  private _hasPhone = false;
 
-  constructor(rules: Rule[] = []) { super(); this.rules = rules; }
+  constructor(rules: Rule[] = []) {
+    super();
+    this.rules = rules;
+    for (const r of rules) {
+      if (r.kind === "min") { this._minLen = r.value; this._minMsg = r.message; }
+      if (r.kind === "max") { this._maxLen = r.value; this._maxMsg = r.message; }
+      if (r.kind === "email") this._hasEmail = true;
+      if (r.kind === "url") this._hasUrl = true;
+      if (r.kind === "uuid") this._hasUuid = true;
+      if (r.kind === "emoji") this._hasEmoji = true;
+      if (r.kind === "date") this._hasDate = true;
+      if (r.kind === "time") this._hasTime = true;
+      if (r.kind === "base64") this._hasBase64 = true;
+      if (r.kind === "cuid") this._hasCuid = true;
+      if (r.kind === "cuid2") this._hasCuid2 = true;
+      if (r.kind === "ulid") this._hasUlid = true;
+      if (r.kind === "nanoid") this._hasNanoid = true;
+      if (r.kind === "ip") this._hasIp = r.version ?? "any";
+      if (r.kind === "datetime") this._hasDatetime = true;
+      if (r.kind === "cidr") this._hasCidr = true;
+      if (r.kind === "alpha") this._hasAlpha = true;
+      if (r.kind === "numeric") this._hasNumeric = true;
+      if (r.kind === "symbol") this._hasSymbol = true;
+      if (r.kind === "phone") this._hasPhone = true;
+    }
+  }
   private with(rule: Rule): StringSchema {
+    // Pass rules including the new one — the constructor will pick up
+    // _minLen/_maxLen/_minMsg/_maxMsg from the new rule.
     const s = new StringSchema([...this.rules, rule]);
-    s._minLen = this._minLen;
-    s._maxLen = this._maxLen;
     s.customValidation = this.customValidation;
     return s;
   }
@@ -193,17 +239,75 @@ export class StringSchema extends Schema<string> {
 
   _parse(input: unknown, ctx: ParseContext): InternalResult<string> {
     // Smart "required": empty / null / undefined → "tidak boleh kosong" (or custom message).
-    // For required string fields this is more user-friendly than the type check
-    // or the min(3) check on "".
-    if (input === undefined || input === null || input === "") {
+    // Combined check using == for nullish (matches both null and undefined).
+    const isString = typeof input === "string";
+    if (!isString && (input == null || input === "")) {
       const reqRule = this.rules.find(r => r.kind === "required");
       ctx.addIssue({ code: "required", message: reqRule?.message });
       return invalid;
     }
-    if (typeof input !== "string") {
+    if (!isString) {
       ctx.addIssue({ code: "invalid_type", expected: "string", received: typeOf(input) });
       return invalid;
     }
+    if (input.length === 0) {
+      const reqRule = this.rules.find(r => r.kind === "required");
+      ctx.addIssue({ code: "required", message: reqRule?.message });
+      return invalid;
+    }
+    if (this.rules.length === 0) return ok(input);
+    // Fast path: direct min/max length checks before the generic rule loop
+    if (this._minLen !== undefined && input.length < this._minLen) {
+      ctx.addIssue({ code: "too_small", kind: "string", minimum: this._minLen, inclusive: true, message: this._minMsg });
+      return invalid;
+    }
+    if (this._maxLen !== undefined && input.length > this._maxLen) {
+      ctx.addIssue({ code: "too_big", kind: "string", maximum: this._maxLen, inclusive: true, message: this._maxMsg });
+      return invalid;
+    }
+    // Fast path: direct format checks
+    if (this._hasEmail && !EMAIL_RE.test(input)) {
+      ctx.addIssue({ code: "invalid_string", validation: "email" });
+      return invalid;
+    }
+    if (this._hasUuid && !UUID_RE.test(input)) {
+      ctx.addIssue({ code: "invalid_string", validation: "uuid" });
+      return invalid;
+    }
+    if (this._hasUrl) { try { new URL(input); } catch { ctx.addIssue({ code: "invalid_string", validation: "url" }); return invalid; } }
+    if (this._hasCuid && !CUID_RE.test(input)) { ctx.addIssue({ code: "invalid_string", validation: "cuid" }); return invalid; }
+    if (this._hasCuid2 && !CUID2_RE.test(input)) { ctx.addIssue({ code: "invalid_string", validation: "cuid2" }); return invalid; }
+    if (this._hasUlid && !ULID_RE.test(input)) { ctx.addIssue({ code: "invalid_string", validation: "ulid" }); return invalid; }
+    if (this._hasNanoid && !NANOID_RE.test(input)) { ctx.addIssue({ code: "invalid_string", validation: "nanoid" }); return invalid; }
+    if (this._hasEmoji && !EMOJI_RE.test(input)) { ctx.addIssue({ code: "invalid_string", validation: "emoji" }); return invalid; }
+    if (this._hasDate && !/^\d{4}-\d{2}-\d{2}$/.test(input)) { ctx.addIssue({ code: "invalid_string", validation: "date" }); return invalid; }
+    if (this._hasTime && !/^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(input)) { ctx.addIssue({ code: "invalid_string", validation: "time" }); return invalid; }
+    if (this._hasBase64 && !BASE64_RE.test(input)) { ctx.addIssue({ code: "invalid_string", validation: "base64" }); return invalid; }
+    if (this._hasDatetime && isNaN(Date.parse(input))) { ctx.addIssue({ code: "invalid_string", validation: "datetime" }); return invalid; }
+    if (this._hasIp) {
+      const valid = this._hasIp === 6 ? isValidIPv6(input) : this._hasIp === 4 ? isValidIPv4(input) : (isValidIPv4(input) || isValidIPv6(input));
+      if (!valid) { ctx.addIssue({ code: "invalid_string", validation: this._hasIp === 6 ? "ipv6" : this._hasIp === 4 ? "ipv4" : "ip" }); return invalid; }
+    }
+    if (this._hasCidr) {
+      const parts = input.split("/");
+      if (parts.length !== 2 || isNaN(Number(parts[1]))) { ctx.addIssue({ code: "invalid_string", validation: "cidr" }); return invalid; }
+      const prefix = Number(parts[1]);
+      const baseIP = parts[0] ?? "";
+      const validIP = isValidIPv4(baseIP) ? (prefix >= 0 && prefix <= 32) : isValidIPv6(baseIP) ? (prefix >= 0 && prefix <= 128) : false;
+      if (!validIP) { ctx.addIssue({ code: "invalid_string", validation: "cidr" }); return invalid; }
+    }
+    if (this._hasAlpha && !ALPHA_RE.test(input)) { ctx.addIssue({ code: "invalid_string", validation: "alpha" }); return invalid; }
+    if (this._hasNumeric && !NUMERIC_RE.test(input)) { ctx.addIssue({ code: "invalid_string", validation: "numeric" }); return invalid; }
+    if (this._hasSymbol && !SYMBOL_RE.test(input)) { ctx.addIssue({ code: "invalid_string", validation: "symbol" }); return invalid; }
+    if (this._hasPhone && !PHONE_RE.test(input.replace(/[\s().-]/g, ""))) { ctx.addIssue({ code: "invalid_string", validation: "phone" }); return invalid; }
+    // If every rule is covered by a fast path, skip the generic loop
+    const fastPathCount = (this._minLen !== undefined ? 1 : 0) + (this._maxLen !== undefined ? 1 : 0)
+      + (this._hasEmail ? 1 : 0) + (this._hasUrl ? 1 : 0) + (this._hasUuid ? 1 : 0) + (this._hasEmoji ? 1 : 0)
+      + (this._hasDate ? 1 : 0) + (this._hasTime ? 1 : 0) + (this._hasBase64 ? 1 : 0) + (this._hasCuid ? 1 : 0)
+      + (this._hasCuid2 ? 1 : 0) + (this._hasUlid ? 1 : 0) + (this._hasNanoid ? 1 : 0)
+      + (this._hasDatetime ? 1 : 0) + (this._hasCidr ? 1 : 0) + (this._hasIp ? 1 : 0)
+      + (this._hasAlpha ? 1 : 0) + (this._hasNumeric ? 1 : 0) + (this._hasSymbol ? 1 : 0) + (this._hasPhone ? 1 : 0);
+    if (fastPathCount >= this.rules.length) return ok(input);
     let failed = false;
     for (const rule of this.rules) {
       if (rule.kind === "min" && input.length < rule.value) {

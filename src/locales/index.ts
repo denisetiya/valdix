@@ -1,3 +1,17 @@
 export { EN } from "./en.js";
 export { ID } from "./id.js";
 export { JP } from "./jp.js";
+export { ZH } from "./zh.js";
+export { ZH_TW } from "./zh-tw.js";
+export { KO } from "./ko.js";
+export { FR } from "./fr.js";
+export { PT } from "./pt.js";
+export { NL } from "./nl.js";
+export { ES } from "./es.js";
+export { DE } from "./de.js";
+export { AR } from "./ar.js";
+export { RU } from "./ru.js";
+export { IT } from "./it.js";
+export { VI } from "./vi.js";
+export { HI } from "./hi.js";
+export { TH } from "./th.js";

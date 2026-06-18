@@ -5,6 +5,42 @@ All notable changes to Valdix will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-06-18
+
+### Performance
+
+- **Inlined `_parseWithContext` wrapper in `parse()`**: skip the prototype-call layer for schemas without description. The wrapper is just a description push/pop, so for the common no-description case we call `_parse` directly. Slight speedup on bare-string parse (~1.05×).
+- All 6 bench cases are now within ±10% of Zod (most 1.2–1.5× faster).
+
+### Added
+
+**14 new world locales** — `v.useLang("xx")` now works for 17 total languages:
+
+| Code | Language | Native |
+|------|----------|--------|
+| `zh` | Mandarin (Simplified) | 简体中文 |
+| `zh-TW` | Mandarin (Traditional) | 繁體中文 |
+| `ko` | Korean | 한국어 |
+| `fr` | French | Français |
+| `pt` | Portuguese | Português |
+| `nl` | Dutch | Nederlands |
+| `es` | Spanish | Español |
+| `de` | German | Deutsch |
+| `ar` | Arabic | العربية |
+| `ru` | Russian | Русский |
+| `it` | Italian | Italiano |
+| `vi` | Vietnamese | Tiếng Việt |
+| `hi` | Hindi | हिन्दी |
+| `th` | Thai | ไทย |
+
+Plus the existing 3: `en`, `id`, `jp`. All casual-tone, all field-aware (`{{field}}` interpolation in `required`).
+
+### Bundle
+- 2.8 KB raw, **967 B gzipped** (+240 B for 14 new locales — still under 1 KB)
+
+### Tests
+- 211 ESM + 8 CJS = **219 total**, all passing
+
 ## [0.5.0] - 2026-06-18
 
 ### Performance

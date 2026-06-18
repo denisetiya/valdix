@@ -19,11 +19,39 @@ import { Schema, ValdixError, registerLocale } from "./core/schema.js";
 import { EN } from "./locales/en.js";
 import { ID } from "./locales/id.js";
 import { JP } from "./locales/jp.js";
+import { ZH } from "./locales/zh.js";
+import { ZH_TW } from "./locales/zh-tw.js";
+import { KO } from "./locales/ko.js";
+import { FR } from "./locales/fr.js";
+import { PT } from "./locales/pt.js";
+import { NL } from "./locales/nl.js";
+import { ES } from "./locales/es.js";
+import { DE } from "./locales/de.js";
+import { AR } from "./locales/ar.js";
+import { RU } from "./locales/ru.js";
+import { IT } from "./locales/it.js";
+import { VI } from "./locales/vi.js";
+import { HI } from "./locales/hi.js";
+import { TH } from "./locales/th.js";
 
-// Auto-register built-in locales
+// Auto-register built-in locales (17 languages)
 registerLocale("en", EN);
 registerLocale("id", ID);
 registerLocale("jp", JP);
+registerLocale("zh", ZH);
+registerLocale("zh-TW", ZH_TW);
+registerLocale("ko", KO);
+registerLocale("fr", FR);
+registerLocale("pt", PT);
+registerLocale("nl", NL);
+registerLocale("es", ES);
+registerLocale("de", DE);
+registerLocale("ar", AR);
+registerLocale("ru", RU);
+registerLocale("it", IT);
+registerLocale("vi", VI);
+registerLocale("hi", HI);
+registerLocale("th", TH);
 
 export type { Infer, Input, StandardSchemaProps, SuperRefineCtx } from "./core/schema.js";
 export { Schema, ValdixError, OptionalSchema, NullableSchema, DefaultSchema, CatchSchema, BrandSchema, TransformSchema, PipeSchema, UnionSchema, IntersectionSchema, RefineSchema, SuperRefineSchema } from "./core/schema.js";
@@ -41,5 +69,5 @@ export {
 } from "./schemas/primitives.js";
 export { useLang, registerLocale, setErrorMap, getErrorMap, getLocales, jsonSchemaOf } from "./core/schema.js";
 export type { ValdixIssue, IssueCode, SafeParseResult, SafeParseSuccess, SafeParseFailure, ParseOptions, LocaleCatalog, ErrorMap, PathSegment } from "./core/types.js";
-export { EN, ID, JP } from "./locales/index.js";
+export { EN, ID, JP, ZH, ZH_TW, KO, FR, PT, NL, ES, DE, AR, RU, IT, VI, HI, TH } from "./locales/index.js";
 export { v, default } from "./factories.js";

@@ -36,10 +36,15 @@ export abstract class Schema<TOutput = unknown, TInput = TOutput> {
   description?: string;
 
   // ── Internal parse entry ──
+  // Inlined description handling for the common no-description case.
+  // For schemas WITH description, wraps _parse with descriptionStack push/pop.
+  // For schemas WITHOUT description, the fast path just calls _parse directly
+  // (V8 inlines this 4-line function for monomorphic call sites).
   _parseWithContext(input: unknown, ctx: ParseContext): InternalResult<TOutput> {
-    if (this.description) ctx.descriptionStack.push(this.description);
+    const d = this.description;
+    if (d !== undefined) ctx.descriptionStack.push(d);
     const r = this._parse(input, ctx);
-    if (this.description) ctx.descriptionStack.pop();
+    if (d !== undefined) ctx.descriptionStack.pop();
     return r;
   }
 
@@ -52,7 +57,13 @@ export abstract class Schema<TOutput = unknown, TInput = TOutput> {
    */
   parse(input: unknown, options?: ParseOptions): TOutput {
     const ctx = createParseContext(options, localeRegistry, defaultLang, errorMap);
-    const result = this._parseWithContext(input, ctx);
+    // Fast path: skip the wrapper for schemas without description.
+    // The wrapper is just a description push/pop, so for no-description
+    // schemas (the common case) we can call _parse directly.
+    const d = this.description;
+    if (d !== undefined) ctx.descriptionStack.push(d);
+    const result = this._parse(input, ctx);
+    if (d !== undefined) ctx.descriptionStack.pop();
     if (!result.ok || ctx.issues.length > 0) throw new ValdixError(ctx.issues);
     return result.value;
   }

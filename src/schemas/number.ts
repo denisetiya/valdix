@@ -4,10 +4,10 @@ import { Schema } from "../core/schema.js";
 import { typeOf } from "../core/utils.js";
 
 type NumberRule =
-  | { kind: "min"; value: number }
-  | { kind: "max"; value: number }
-  | { kind: "lt"; value: number }
-  | { kind: "gt"; value: number }
+  | { kind: "min"; value: number; message?: string }
+  | { kind: "max"; value: number; message?: string }
+  | { kind: "lt"; value: number; message?: string }
+  | { kind: "gt"; value: number; message?: string }
   | { kind: "int" }
   | { kind: "positive" }
   | { kind: "nonnegative" }
@@ -18,13 +18,30 @@ type NumberRule =
   | { kind: "multipleOf"; value: number };
 
 export class NumberSchema extends Schema<number> {
-  constructor(private readonly rules: NumberRule[] = []) { super(); }
+  private readonly rules: NumberRule[];
+  private _min?: number;
+  private _max?: number;
+  private _exclusiveMin?: number;
+  private _exclusiveMax?: number;
+  private _intOnly = false;
+
+  constructor(rules: NumberRule[] = []) {
+    super();
+    this.rules = rules;
+    for (const r of rules) {
+      if (r.kind === "min") this._min = r.value;
+      if (r.kind === "max") this._max = r.value;
+      if (r.kind === "gt") this._exclusiveMin = r.value;
+      if (r.kind === "lt") this._exclusiveMax = r.value;
+      if (r.kind === "int") this._intOnly = true;
+    }
+  }
   private with(rule: NumberRule): NumberSchema { return new NumberSchema([...this.rules, rule]); }
 
-  min(n: number): NumberSchema { return this.with({ kind: "min", value: n }); }
-  max(n: number): NumberSchema { return this.with({ kind: "max", value: n }); }
-  lt(n: number): NumberSchema { return this.with({ kind: "lt", value: n }); }
-  gt(n: number): NumberSchema { return this.with({ kind: "gt", value: n }); }
+  min(n: number, message?: string): NumberSchema { return this.with({ kind: "min", value: n, message }); }
+  max(n: number, message?: string): NumberSchema { return this.with({ kind: "max", value: n, message }); }
+  lt(n: number, message?: string): NumberSchema { return this.with({ kind: "lt", value: n, message }); }
+  gt(n: number, message?: string): NumberSchema { return this.with({ kind: "gt", value: n, message }); }
   int(): NumberSchema { return this.with({ kind: "int" }); }
   positive(): NumberSchema { return this.with({ kind: "positive" }); }
   nonnegative(): NumberSchema { return this.with({ kind: "nonnegative" }); }
@@ -34,6 +51,16 @@ export class NumberSchema extends Schema<number> {
   safe(): NumberSchema { return this.with({ kind: "safe" }); }
   multipleOf(n: number): NumberSchema { return this.with({ kind: "multipleOf", value: n }); }
 
+  _toJSONSchema(): unknown {
+    const base: any = { type: "number", ...(this.description ? { description: this.description } : {}) };
+    if (this._min !== undefined) base.minimum = this._min;
+    if (this._max !== undefined) base.maximum = this._max;
+    if (this._exclusiveMin !== undefined) { base.exclusiveMinimum = this._exclusiveMin; delete base.minimum; }
+    if (this._exclusiveMax !== undefined) { base.exclusiveMaximum = this._exclusiveMax; delete base.maximum; }
+    if (this._intOnly) base.type = "integer";
+    return base;
+  }
+
   _parse(input: unknown, ctx: ParseContext): InternalResult<number> {
     if (typeof input !== "number" || Number.isNaN(input)) {
       ctx.addIssue({ code: "invalid_type", expected: "number", received: typeOf(input) });
@@ -41,11 +68,11 @@ export class NumberSchema extends Schema<number> {
     }
     for (const rule of this.rules) {
       if (rule.kind === "min" && input < rule.value) {
-        ctx.addIssue({ code: "too_small", kind: "number", minimum: rule.value, inclusive: true });
+        ctx.addIssue({ code: "too_small", kind: "number", minimum: rule.value, inclusive: true, message: rule.message });
         if (ctx.abortEarly) return invalid; continue;
       }
       if (rule.kind === "max" && input > rule.value) {
-        ctx.addIssue({ code: "too_big", kind: "number", maximum: rule.value, inclusive: true });
+        ctx.addIssue({ code: "too_big", kind: "number", maximum: rule.value, inclusive: true, message: rule.message });
         if (ctx.abortEarly) return invalid; continue;
       }
       if (rule.kind === "int" && !Number.isInteger(input)) {
@@ -77,11 +104,11 @@ export class NumberSchema extends Schema<number> {
         if (ctx.abortEarly) return invalid; continue;
       }
       if (rule.kind === "gt" && input <= rule.value) {
-        ctx.addIssue({ code: "too_small", kind: "number", minimum: rule.value, inclusive: false });
+        ctx.addIssue({ code: "too_small", kind: "number", minimum: rule.value, inclusive: false, message: rule.message });
         if (ctx.abortEarly) return invalid; continue;
       }
       if (rule.kind === "lt" && input >= rule.value) {
-        ctx.addIssue({ code: "too_big", kind: "number", maximum: rule.value, inclusive: false });
+        ctx.addIssue({ code: "too_big", kind: "number", maximum: rule.value, inclusive: false, message: rule.message });
         if (ctx.abortEarly) return invalid; continue;
       }
       if (rule.kind === "multipleOf" && input % rule.value !== 0) {
@@ -94,6 +121,7 @@ export class NumberSchema extends Schema<number> {
 }
 
 export class BooleanSchema extends Schema<boolean> {
+  _toJSONSchema(): unknown { return { type: "boolean", ...(this.description ? { description: this.description } : {}) }; }
   _parse(input: unknown, ctx: ParseContext): InternalResult<boolean> {
     if (typeof input !== "boolean") {
       ctx.addIssue({ code: "invalid_type", expected: "boolean", received: typeOf(input) });

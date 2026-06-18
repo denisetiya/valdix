@@ -1,7 +1,7 @@
 import { StringSchema } from "./schemas/string.js";
 import { NumberSchema, BooleanSchema } from "./schemas/number.js";
 import {
-  DateSchema, LiteralSchema, EnumSchema, BigIntSchema, InstanceOfSchema,
+  DateSchema, LiteralSchema, EnumSchema, BigIntSchema, InstanceOfSchema, NativeEnumSchema,
   NeverSchema, AnySchema, UnknownSchema,
   NullSchema, UndefinedSchema, VoidSchema
 } from "./schemas/primitives.js";
@@ -9,7 +9,7 @@ import { ObjectSchema, type ObjectShape } from "./schemas/object.js";
 import { ArraySchema, TupleSchema } from "./schemas/array.js";
 import { RecordSchema } from "./schemas/record.js";
 import { DiscriminatedUnionSchema, LazySchema, SetSchema, MapSchema } from "./schemas/advanced.js";
-import { Schema, TransformSchema, PipeSchema, OptionalSchema, NullableSchema, DefaultSchema, CatchSchema, BrandSchema } from "./core/schema.js";
+import { Schema, TransformSchema, PipeSchema, OptionalSchema, NullableSchema, DefaultSchema, CatchSchema, BrandSchema, type Infer, type Input } from "./core/schema.js";
 
 // ── Primitives ──
 export const string = () => new StringSchema();
@@ -19,6 +19,7 @@ export const bigint = () => new BigIntSchema();
 export const date = () => new DateSchema();
 export const literal = <T extends string | number | boolean | null | undefined>(val: T) => new LiteralSchema(val);
 export const enumValues = <T extends readonly [string, ...string[]]>(options: T) => new EnumSchema(options);
+export const nativeEnum = <T extends Record<string, string | number>>(obj: T) => new NativeEnumSchema(obj);
 export const instanceOf = <T extends abstract new (...args: any[]) => any>(cls: T) => new InstanceOfSchema(cls);
 export const never = () => new NeverSchema();
 export const any = () => new AnySchema();
@@ -67,3 +68,27 @@ export const coerce = {
   bigint: () => preprocess((v) => typeof v === "bigint" ? v : BigInt(Number(v)), bigint()),
   date: () => preprocess((v) => v instanceof Date ? v : new Date(String(v)), date()),
 };
+
+// ── Re-exports ──
+export type { Infer, Input };
+
+// ── v namespace (default & named export) ──
+import { useLang as _useLang, registerLocale as _registerLocale, setErrorMap as _setErrorMap } from "./core/schema.js";
+
+/** Single namespace bundling all schema factories. */
+export const v = {
+  string, number, boolean, bigint, date,
+  literal, enum: enumValues, nativeEnum, instanceOf,
+  any, unknown, never,
+  null: nullType,
+  undefined: undefinedType,
+  void: voidType,
+  object, strictObject,
+  array, tuple, record, set, map,
+  union, intersection,
+  discriminatedUnion, lazy,
+  preprocess, coerce,
+  useLang: _useLang, registerLocale: _registerLocale, setErrorMap: _setErrorMap,
+};
+
+export default v;

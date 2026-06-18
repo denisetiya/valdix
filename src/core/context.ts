@@ -1,12 +1,14 @@
-import type { ValdixIssue, IssueInput, ParseOptions, LocaleCatalog } from "./types.js";
-import { resolveMessage } from "./messages.js";
+import type { ValdixIssue, IssueInput, ParseOptions, LocaleCatalog, ErrorMap } from "./types.js";
+import { resolveMessage, fieldFromPath, interpolate } from "./messages.js";
 
 export interface ParseContext {
   lang: string;
   abortEarly: boolean;
-  path: string[];
+  path: (string | number)[];
   issues: ValdixIssue[];
   locales: Map<string, LocaleCatalog>;
+  errorMap?: ErrorMap;
+  descriptionStack: string[];
   addIssue: (issue: IssueInput) => void;
   fork: () => ParseContext;
   childContext: (key: string) => ParseContext;
@@ -15,22 +17,33 @@ export interface ParseContext {
 export const createContext = (
   lang: string,
   abortEarly: boolean,
-  locales: Map<string, LocaleCatalog>
+  locales: Map<string, LocaleCatalog>,
+  errorMap?: ErrorMap,
+  descriptionStack: string[] = [],
+  isolatedIssues: boolean = false
 ): ParseContext => {
+  const issues: ValdixIssue[] = [];
   const ctx: ParseContext = {
     lang,
     abortEarly,
     path: [],
-    issues: [],
+    issues: isolatedIssues ? [] : issues,
     locales,
+    errorMap,
+    descriptionStack,
     addIssue(issue: IssueInput) {
       const fullPath = issue.path
         ? [...ctx.path, ...issue.path.map(String)]
         : [...ctx.path];
 
+      const description = ctx.descriptionStack[ctx.descriptionStack.length - 1];
+      const field = fieldFromPath(fullPath);
+
       const base: Omit<ValdixIssue, "message"> = {
         code: issue.code,
         path: fullPath,
+        field,
+        description,
         expected: issue.expected as string | undefined,
         received: issue.received as string | undefined,
         minimum: issue.minimum as number | undefined,
@@ -47,15 +60,34 @@ export const createContext = (
         constructorName: issue.constructorName as string | undefined,
       };
 
-      const message = resolveMessage(base, ctx.lang, ctx.locales, issue.message);
+      const defaultError = resolveMessage(base, ctx.lang, ctx.locales, ctx.errorMap);
+      const fieldLabel = description ?? (field ? field.replace(/[_-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase() : "");
+      const message = issue.message
+        ? interpolate(issue.message, {
+            field: fieldLabel,
+            path: fullPath.map(String).join("."),
+            expected: String(issue.expected ?? ""),
+            received: String(issue.received ?? ""),
+            minimum: String(issue.minimum ?? ""),
+            maximum: String(issue.maximum ?? ""),
+            validation: String(issue.validation ?? ""),
+            literal: String(issue.literal ?? ""),
+            discriminator: String(issue.discriminator ?? ""),
+            keys: (Array.isArray(issue.keys) ? issue.keys : []).map(String).join(", "),
+            options: (Array.isArray(issue.options) ? issue.options : []).map(String).join(", "),
+          })
+        : defaultError;
       ctx.issues.push({ ...base, message });
     },
     fork() {
-      return createContext(ctx.lang, ctx.abortEarly, ctx.locales);
+      const f = createContext(ctx.lang, ctx.abortEarly, ctx.locales, ctx.errorMap, ctx.descriptionStack, true);
+      f.path = [...ctx.path];
+      return f;
     },
     childContext(key: string) {
-      const child = createContext(ctx.lang, ctx.abortEarly, ctx.locales);
+      const child = createContext(ctx.lang, ctx.abortEarly, ctx.locales, ctx.errorMap, ctx.descriptionStack);
       child.path = [...ctx.path, key];
+      child.issues = ctx.issues; // share - issues flow to parent
       return child;
     },
   };
@@ -65,24 +97,19 @@ export const createContext = (
 export const createParseContext = (
   options: ParseOptions | undefined,
   locales: Map<string, LocaleCatalog>,
-  defaultLang: string
+  defaultLang: string,
+  errorMap?: ErrorMap
 ): ParseContext => {
   return createContext(
     options?.lang ?? defaultLang,
     options?.abortEarly ?? false,
-    locales
+    locales,
+    errorMap
   );
 };
 
-export interface InternalOk<T> {
-  ok: true;
-  value: T;
-}
-
-export interface InternalFail {
-  ok: false;
-}
-
+export interface InternalOk<T> { ok: true; value: T; }
+export interface InternalFail { ok: false; }
 export type InternalResult<T> = InternalOk<T> | InternalFail;
 
 export const ok = <T>(value: T): InternalOk<T> => ({ ok: true, value });

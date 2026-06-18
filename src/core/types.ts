@@ -22,6 +22,8 @@ export interface ValdixIssue {
   path: PathSegment[];
   code: IssueCode;
   message: string;
+  field?: string;
+  description?: string;
   expected?: string;
   received?: string;
   minimum?: number;
@@ -49,18 +51,17 @@ export type IssueInput = {
   path?: PathSegment[];
 } & Record<string, unknown>;
 
-export interface SafeParseSuccess<T> {
-  success: true;
-  data: T;
-}
-
-export interface SafeParseFailure {
-  success: false;
-  errors: ValdixIssue[];
-}
-
+export interface SafeParseSuccess<T> { success: true; data: T; }
+export interface SafeParseFailure { success: false; errors: ValdixIssue[]; }
 export type SafeParseResult<T> = SafeParseSuccess<T> | SafeParseFailure;
 
 export type MessageTemplate = string | ((issue: Omit<ValdixIssue, "message">) => string);
 
 export type LocaleCatalog = Partial<Record<IssueCode, MessageTemplate>>;
+
+export type ErrorMap = (
+  issue: Omit<ValdixIssue, "message">,
+  ctx: { defaultError: string; lang: string }
+) => string;
+
+export type SchemaDescription = { description?: string };

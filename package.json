@@ -1,14 +1,16 @@
 {
   "name": "valdix",
   "version": "0.1.0",
-  "description": "Zero-dependency Type-first schema validation with multi-language casual error messages.",
+  "description": "Zero-dependency TypeScript-first schema validation with multi-language casual error messages.",
   "type": "module",
-  "main": "./dist/index.js",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/cjs/index.cjs"
     }
   },
   "files": [
@@ -18,10 +20,16 @@
   ],
   "sideEffects": false,
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "npm run build:esm && npm run build:cjs",
+    "build:esm": "tsc -p tsconfig.build.json",
+    "build:cjs": "tsc -p tsconfig.cjs.json && node scripts/postbuild-cjs.mjs",
     "clean": "node ./scripts/clean.mjs",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
-    "test": "node --test tests/*.test.mjs"
+    "test": "npm run test:esm && npm run test:cjs",
+    "test:esm": "node --test tests/*.test.mjs",
+    "test:cjs": "node tests/cjs.test.cjs",
+    "bench": "node tests/bench/run.mjs",
+    "size": "node scripts/size.mjs"
   },
   "keywords": [
     "validation",
@@ -29,7 +37,9 @@
     "typescript",
     "zod",
     "i18n",
-    "multilingual"
+    "multilingual",
+    "zero-dependency",
+    "standard-schema"
   ],
   "author": "Deni Setiya",
   "license": "MIT",

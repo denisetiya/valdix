@@ -1,24 +1,87 @@
 # Changelog
 
+All notable changes to Valdix will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.2.0] - 2026-06-18
+
+### Added
+
+**Message system overhaul**
+- Per-rule custom error messages: `v.string().min(3, "Minimal 3 karakter")`
+- `{{field}}` interpolation in custom messages
+- Global error map: `setErrorMap((issue, ctx) => ...)`
+- `field` and `description` fields on `ValdixIssue` for UI display
+- `describe()` for schema-level metadata
+
+**New string validators**
+- `.ip(version?)` — IPv4/IPv6
+- `.cidr()` — CIDR notation
+- `.base64()`
+- `.cuid()` / `.cuid2()`
+- `.ulid()`
+- `.nanoid()`
+- `.emoji()`
+- `.datetime()` / `.date()` / `.time()`
+
+**New array refinements**
+- `.nonempty()` — must have ≥ 1 element
+- `.unique()` — no duplicates
+
+**Date refinements**
+- `.min(date)` / `.max(date)`
+
+**New schemas**
+- `v.nativeEnum(TSEnum)`
+- `v.instanceOf(cls)` (added earlier)
+- `v.bigint()` (added earlier)
+- `v.set(item)` / `v.map(k, v)`
+
+**Object refinements**
+- `.catchall(schema)` — extra keys validated
+- `.readonly()` — type-level `Readonly<T>`
+- `.keyof()` — enum of shape keys
+
+**Advanced validation**
+- `.superRefine(fn)` — multi-issue, sync or async
+- `parseAsync` / `safeParseAsync`
+- Recursive schemas via `v.lazy(() => ...)` with cycle protection
+
+**Ecosystem**
+- `toJSONSchema()` on every schema
+- Standard Schema interface (`~standard`) for ecosystem interop
+- CJS build alongside ESM
+- Bundle size script (`npm run size`)
+- Micro-benchmark script (`npm run bench`)
+- GitHub Actions CI (Node 20 + 22)
+- CJS smoke test
+
+### Changed
+
+- String validator tracks `failed` state to correctly return `invalid` when issues are added without `abortEarly`
+- `childContext` shares parent's issues array (issues flow to root)
+- `fork` creates isolated context (used by `union` and `catch`)
+- `ObjectSchema.pick/omit` now copy `catchall` reference
+- Locale messages templated for `{{field}}` interpolation
+
+### Fixed
+
+- String validator returning `ok` when `abortEarly=false` but issues were added
+- CJS build: `require()` paths now use `.cjs` extension
+
 ## [0.1.0] - 2026-06-18
 
 ### Added
 
-- **Core engine** — `Schema<TOutput, TInput>` base class with `parse()`, `safeParse()`, chainable API
-- **String schema** — `.min()`, `.max()`, `.length()`, `.email()`, `.url()`, `.uuid()`, `.regex()`, `.startsWith()`, `.endsWith()`, `.includes()`, `.trim()`, `.lowercase()`, `.uppercase()`
-- **Number schema** — `.min()`, `.max()`, `.int()`, `.positive()`, `.negative()`, `.finite()`, `.multipleOf()`
-- **Boolean, Date, Literal, Enum** primitives
-- **Object schema** — deep inference, `.partial()`, `.required()`, `.pick()`, `.omit()`, `.extend()`, `.merge()`, `.strict()`, `.passthrough()`
-- **Array schema** — `.min()`, `.max()`, `.length()`, full item validation
-- **Tuple schema** — fixed-length typed tuples
-- **Union & Intersection** — `.or()`, `.and()`, `v.union()`
-- **Discriminated Union** — `v.discriminatedUnion("type", { ... })`
-- **Record schema** — key+value validation
-- **Modifiers** — `.optional()`, `.nullable()`, `.nullish()`, `.default()`
-- **Transform & Pipe** — `.transform()`, `.pipe()` for value transformation
-- **Multi-language** — Built-in EN, ID, JP with natural/casual error messages
-- **`v.useLang()`** — global language switch
-- **Per-parse `{ lang }`** — override language per parse call
-- **Zero dependencies** — only TypeScript as devDependency
-- **Type inference** — `v.Infer<typeof schema>`, `v.Input<typeof schema>`
-- **Error output** — `.safeParse()` returns `{ success, errors: [{ path, message, code }] }`, ready for UI rendering
+- Initial release
+- Core types: string, number, boolean, date, bigint, literal, enum
+- Object, array, tuple, record, union, intersection, discriminated union
+- Refinements: `.min`, `.max`, `.email`, `.url`, `.uuid`, `.regex`, `.int`, `.positive`, etc.
+- Localized errors: English, Indonesian, Japanese
+- `.parse()` and `.safeParse()` with `ValdixError`
+- `.optional()`, `.nullable()`, `.nullish()`, `.default()`, `.catch()`
+- `.transform()`, `.refine()`, `.brand()`, `.or()`, `.and()`
+- Coercion helpers: `v.coerce.string()`, `v.coerce.number()`, etc.
+- `v.preprocess(fn, schema)` for pre-validation transformation

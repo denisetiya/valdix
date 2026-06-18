@@ -9,6 +9,7 @@ import { ObjectSchema, type ObjectShape } from "./schemas/object.js";
 import { ArraySchema, TupleSchema } from "./schemas/array.js";
 import { RecordSchema } from "./schemas/record.js";
 import { DiscriminatedUnionSchema, LazySchema, SetSchema, MapSchema } from "./schemas/advanced.js";
+import { FunctionSchema, PromiseSchema } from "./schemas/function.js";
 import { Schema, TransformSchema, PipeSchema, OptionalSchema, NullableSchema, DefaultSchema, CatchSchema, BrandSchema, type Infer, type Input } from "./core/schema.js";
 
 // ── Primitives ──
@@ -69,6 +70,12 @@ export const coerce = {
   date: () => preprocess((v) => v instanceof Date ? v : new Date(String(v)), date()),
 };
 
+// ── Function / Promise ──
+/** Schema for function arguments and return values. */
+export const fn = () => new FunctionSchema();
+/** Schema for a Promise's resolved value. */
+export const promise = <T extends Schema<any, any>>(inner: T) => new PromiseSchema(inner);
+
 // ── Re-exports ──
 export type { Infer, Input };
 
@@ -87,6 +94,7 @@ export const v = {
   array, tuple, record, set, map,
   union, intersection,
   discriminatedUnion, lazy,
+  function: fn, promise,
   preprocess, coerce,
   useLang: _useLang, registerLocale: _registerLocale, setErrorMap: _setErrorMap,
 };

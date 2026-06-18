@@ -27,6 +27,18 @@ registerLocale("jp", JP);
 
 export type { Infer, Input, StandardSchemaProps, SuperRefineCtx } from "./core/schema.js";
 export { Schema, ValdixError, OptionalSchema, NullableSchema, DefaultSchema, CatchSchema, BrandSchema, TransformSchema, PipeSchema, UnionSchema, IntersectionSchema, RefineSchema, SuperRefineSchema } from "./core/schema.js";
+export { StringSchema } from "./schemas/string.js";
+export { NumberSchema, BooleanSchema } from "./schemas/number.js";
+export { ObjectSchema, type ObjectShape } from "./schemas/object.js";
+export { ArraySchema, TupleSchema } from "./schemas/array.js";
+export { RecordSchema } from "./schemas/record.js";
+export { DiscriminatedUnionSchema, LazySchema, SetSchema, MapSchema } from "./schemas/advanced.js";
+export { FunctionSchema, PromiseSchema } from "./schemas/function.js";
+export {
+  DateSchema, LiteralSchema, EnumSchema, BigIntSchema, InstanceOfSchema, NativeEnumSchema,
+  NeverSchema, AnySchema, UnknownSchema,
+  NullSchema, UndefinedSchema, VoidSchema
+} from "./schemas/primitives.js";
 export { useLang, registerLocale, setErrorMap, getErrorMap, getLocales, jsonSchemaOf } from "./core/schema.js";
 export type { ValdixIssue, IssueCode, SafeParseResult, SafeParseSuccess, SafeParseFailure, ParseOptions, LocaleCatalog, ErrorMap, PathSegment } from "./core/types.js";
 export { EN, ID, JP } from "./locales/index.js";

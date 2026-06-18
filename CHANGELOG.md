@@ -5,6 +5,41 @@ All notable changes to Valdix will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-06-18
+
+### Added
+
+**Schemas**
+- `v.function()` — args + returns validation with `.implement(fn)` wrapper
+- `v.promise(inner)` — validates a Promise's resolved value
+- New string formats: `.ip()`, `.cidr()`, `.base64()`, `.cuid()`, `.cuid2()`, `.ulid()`, `.nanoid()`, `.emoji()`, `.datetime()`, `.date()`, `.time()`
+- Array refinements: `.nonempty()`, `.unique()`
+- Date refinements: `.min(date)`, `.max(date)`
+- Object refinements: `.catchall(schema)`, `.readonly()`, `.keyof()`
+- Set/Map schemas
+
+**Validation**
+- `.superRefine(fn)` — multi-issue, sync + async
+- `parseAsync` / `safeParseAsync`
+- `toJSONSchema()` on every schema
+- `~standard` Standard Schema interface
+- Cycle protection in `v.lazy()`
+
+**Ecosystem**
+- CJS build alongside ESM
+- All schema classes exported for advanced usage
+- JSDoc comments on all public methods (IDE intellisense)
+- 4 usage examples in `examples/`
+- Zod comparison benchmark in `tests/bench/compare.mjs`
+- i18n guide (`docs/i18n.md`)
+- Migration guide (`docs/migrating-from-zod.md`)
+
+### Fixed
+
+- String validator returning `ok` when issues were added with `abortEarly=false`
+- `childContext` now shares parent's issues array
+- CJS `require()` paths use `.cjs` extension
+
 ## [0.2.0] - 2026-06-18
 
 ### Added

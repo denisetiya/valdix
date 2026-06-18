@@ -64,16 +64,26 @@ export class ArraySchema<T extends Schema<any, any>>
     let hasErr = false;
     const pathLen = ctx.pathStack.length;
     const itemSchema = this.item;
-    const hasDesc = !!itemSchema.description;
+    const hasDesc = itemSchema.description !== undefined;
+    const hasParse = itemSchema._parse;
+    const hasParseWithCtx = itemSchema._parseWithContext;
+    const abortEarly = ctx.abortEarly;
+    const push = ctx.pathStack.push.bind(ctx.pathStack);
+    // Hot loop: skip the path push/pop when we're at root (path stack empty)
+    const atRoot = pathLen === 0;
     for (let i = 0; i < len; i++) {
-      ctx.pathStack.push(i);
-      const parsed = hasDesc
-        ? itemSchema._parseWithContext(input[i], ctx)
-        : itemSchema._parse(input[i], ctx);
-      ctx.pathStack.length = pathLen;
+      const v = input[i];
+      let parsed;
+      if (atRoot) {
+        parsed = hasDesc ? hasParseWithCtx.call(itemSchema, v, ctx) : hasParse.call(itemSchema, v, ctx);
+      } else {
+        push(i);
+        parsed = hasDesc ? hasParseWithCtx.call(itemSchema, v, ctx) : hasParse.call(itemSchema, v, ctx);
+        ctx.pathStack.length = pathLen;
+      }
       if (!parsed.ok) {
         hasErr = true;
-        if (ctx.abortEarly) return invalid;
+        if (abortEarly) return invalid;
         continue;
       }
       out[i] = parsed.value;

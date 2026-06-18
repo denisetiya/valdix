@@ -20,6 +20,7 @@ type ObjectOutput<T extends ObjectShape> = Simplify<{
 export class ObjectSchema<T extends ObjectShape>
   extends Schema<ObjectOutput<T>, ObjectInput<T>> {
   private readonly _catchall?: Schema<any, any>;
+  private readonly _cachedKeys: string[];
 
   constructor(
     readonly shape: T,
@@ -28,6 +29,7 @@ export class ObjectSchema<T extends ObjectShape>
   ) {
     super();
     this._catchall = catchall;
+    this._cachedKeys = Object.keys(shape);
   }
 
   /** Reject unknown keys. */
@@ -107,9 +109,11 @@ export class ObjectSchema<T extends ObjectShape>
     const source = input as Record<string, unknown>;
     const output: Record<string, unknown> = {};
     let hasErr = false;
-    const pathLen = ctx.pathStack.length;
-    const shapeKeys = Object.keys(this.shape);
+    // Use pre-computed shape keys (computed once in constructor, survives freeze)
+    const shapeKeys = this._cachedKeys;
     const shapeLen = shapeKeys.length;
+    const pathLen = ctx.pathStack.length;
+    const abortEarly = ctx.abortEarly;
 
     for (let i = 0; i < shapeLen; i++) {
       const key = shapeKeys[i]!;
@@ -126,7 +130,7 @@ export class ObjectSchema<T extends ObjectShape>
         ctx.addIssue({ code: "required" });
         ctx.pathStack.length = pathLen;
         hasErr = true;
-        if (ctx.abortEarly) return invalid;
+        if (abortEarly) return invalid;
         continue;
       }
       // Fast path: skip description wrapper when child has no description
@@ -140,7 +144,7 @@ export class ObjectSchema<T extends ObjectShape>
         output[key] = parsed.value;
       } else {
         hasErr = true;
-        if (ctx.abortEarly) return invalid;
+        if (abortEarly) return invalid;
       }
     }
 

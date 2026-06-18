@@ -1,0 +1,43 @@
+{
+  "name": "valdix",
+  "version": "0.1.0",
+  "description": "Zero-dependency Type-first schema validation with multi-language casual error messages.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "node ./scripts/clean.mjs",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "keywords": [
+    "validation",
+    "schema",
+    "typescript",
+    "zod",
+    "i18n",
+    "multilingual"
+  ],
+  "author": "Deni Setiya",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/denisetiya/valdix.git"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

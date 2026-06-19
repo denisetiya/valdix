@@ -328,6 +328,42 @@ npm run bench       # micro-benchmark
 npm run size        # bundle size
 ```
 
+## Release process
+
+The package is published to npm via the **Release** GitHub Actions workflow. Trigger it manually from the Actions tab.
+
+### Steps
+
+1. Go to **Actions** → **Release** → **Run workflow**
+2. Pick the version bump:
+   - **patch** — bug fixes, perf (0.6.0 → 0.6.1)
+   - **minor** — new features, locales (0.6.0 → 0.7.0)
+   - **major** — breaking changes (0.6.0 → 1.0.0)
+3. Optional: add a prerelease tag (e.g. `beta`, `rc.1`)
+4. Optional: enable **dry run** to verify build + version bump without publishing
+5. Click **Run workflow**
+
+The workflow will:
+- Run typecheck + 211 tests
+- Build ESM + CJS + types
+- Verify the new version isn't already on npm
+- Bump `package.json` and stamp a CHANGELOG entry
+- Publish to npm
+- Smoke-test the published package in a clean install
+- Commit the version bump + tag, push to `main`
+- Create a GitHub release with auto-generated notes
+
+### First-time setup
+
+Add the `NPM_TOKEN` secret to the repo:
+
+```bash
+# Get an automation token from https://www.npmjs.com/settings/~/tokens
+# (Use "Automation" type for publish)
+gh secret set NPM_TOKEN
+# paste token when prompted
+```
+
 ## License
 
 MIT

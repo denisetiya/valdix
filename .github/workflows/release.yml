@@ -1,0 +1,194 @@
+name: Release
+
+# Manual trigger only — bumps version, publishes to npm, creates GH release.
+# Use this when you want to ship a new version of valdix to npm.
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump type"
+        type: choice
+        required: true
+        default: "patch"
+        options:
+          - patch
+          - minor
+          - major
+      prerelease:
+        description: "Optional prerelease tag (e.g. beta, rc.1) — leave empty for stable"
+        type: string
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry run — build, bump, but skip npm publish and git push"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build (ESM + CJS + types)
+        run: npm run build
+
+      - name: Compute new version
+        id: version
+        run: |
+          CURRENT=$(node -p "require('./package.json').version")
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+
+          # Parse current version
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${CURRENT%%-*}"
+          PRERELEASE="${CURRENT#*-}"
+
+          # Bump the relevant component
+          case "${{ inputs.bump }}" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0; PRERELEASE="" ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0; PRERELEASE="" ;;
+            patch) PATCH=$((PATCH + 1)); PRERELEASE="" ;;
+          esac
+
+          # Apply prerelease tag if provided
+          if [ -n "${{ inputs.prerelease }}" ]; then
+            PRERELEASE="${{ inputs.prerelease }}"
+          fi
+
+          # Compose
+          if [ -n "$PRERELEASE" ]; then
+            NEW="${MAJOR}.${MINOR}.${PATCH}-${PRERELEASE}"
+          else
+            NEW="${MAJOR}.${MINOR}.${PATCH}"
+          fi
+
+          echo "new=$NEW" >> $GITHUB_OUTPUT
+          echo "next=$NEW" >> $GITHUB_STEP_SUMMARY
+          echo "**Release:** $CURRENT → $NEW" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ inputs.prerelease }}" ]; then
+            echo "**Prerelease:** ${{ inputs.prerelease }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Check version is unused on npm
+        if: ${{ !inputs.dry_run }}
+        run: |
+          NEW="${{ steps.version.outputs.new }}"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://registry.npmjs.org/valdix/${NEW}")
+          if [ "$STATUS" = "200" ]; then
+            echo "::error::Version $NEW is already published on npm."
+            exit 1
+          fi
+          echo "Version $NEW is available."
+
+      - name: Update package.json version
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '${{ steps.version.outputs.new }}';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+      - name: Update CHANGELOG header
+        run: |
+          NEW="${{ steps.version.outputs.new }}"
+          DATE=$(date -u +%Y-%m-%d)
+          # If the most recent entry is for the current (pre-bump) version, just rename it.
+          # Otherwise, prepend a fresh entry.
+          CURRENT=$(echo "## [${{ steps.version.outputs.current }}]")
+          if grep -qF "$CURRENT" CHANGELOG.md; then
+            # Replace existing header for this version with dated version
+            sed -i "s|^## \[${{ steps.version.outputs.current }}\] - .*|## [$NEW] - $DATE|" CHANGELOG.md
+          else
+            # Prepend new entry under # Changelog
+            sed -i "/^# Changelog\$/a\\
+          \\
+          ## [$NEW] - $DATE\\
+          \\
+          _Released via GitHub Actions._" CHANGELOG.md
+          fi
+
+      - name: Verify build still passes with new version
+        run: npm run build
+
+      - name: Publish to npm
+        if: ${{ !inputs.dry_run }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          # The dist/ was already built. Publish from current dir.
+          # package.json's "files" array controls what gets shipped.
+          npm publish --access public
+        working-directory: ${{ github.workspace }}
+
+      - name: Smoke test the published package
+        if: ${{ !inputs.dry_run }}
+        run: |
+          cd /tmp
+          npm init -y >/dev/null
+          npm install valdix@${{ steps.version.outputs.new }} --no-audit --no-fund
+          node -e "
+            const v = require('/tmp/node_modules/valdix');
+            const schema = v.v.object({ name: v.v.string().min(3) });
+            const r = schema.safeParse({ name: 'ab' });
+            if (r.success) throw new Error('Expected validation to fail');
+            if (!r.errors[0].message) throw new Error('Expected error message');
+            console.log('OK', JSON.stringify(r.errors));
+          "
+
+      - name: Commit version bump
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json CHANGELOG.md
+          git commit -m "chore: release v${{ steps.version.outputs.new }}"
+          git tag "v${{ steps.version.outputs.new }}"
+          git push origin HEAD:main --follow-tags
+
+      - name: Create GitHub release
+        if: ${{ !inputs.dry_run && steps.version.outputs.current != steps.version.outputs.new }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.new }}
+          name: "v${{ steps.version.outputs.new }}"
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ inputs.prerelease != '' }}
+
+      - name: Dry-run summary
+        if: ${{ inputs.dry_run }}
+        run: |
+          echo "## Dry run — no publish, no push" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Current:** ${{ steps.version.outputs.current }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Next:**    ${{ steps.version.outputs.new }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Build artifacts in dist/:" >> $GITHUB_STEP_SUMMARY
+          find dist -type f -exec echo "  - {}" \; >> $GITHUB_STEP_SUMMARY

@@ -166,11 +166,18 @@ jobs:
       - name: Smoke test the published package
         if: ${{ !inputs.dry_run }}
         run: |
-          cd /tmp
-          npm init -y >/dev/null
-          npm install @denisetiya/valdix@${{ steps.version.outputs.new }} --no-audit --no-fund
+          PKG="@denisetiya/valdix@${{ steps.version.outputs.new }}"
+          for i in 1 2 3 4 5 6; do
+            cd /tmp
+            rm -rf smoke-test && mkdir smoke-test && cd smoke-test
+            npm init -y >/dev/null
+            if npm install "$PKG" --no-audit --no-fund; then break; fi
+            echo "retry $i: $PKG not yet visible, waiting 20s"
+            sleep 20
+            if [ "$i" = "6" ]; then echo "::error::package not visible after retries"; exit 1; fi
+          done
           node -e "
-            const v = require('/tmp/node_modules/@denisetiya/valdix');
+            const v = require('/tmp/smoke-test/node_modules/@denisetiya/valdix');
             const schema = v.v.object({ name: v.v.string().min(3) });
             const r = schema.safeParse({ name: 'ab' });
             if (r.success) throw new Error('Expected validation to fail');

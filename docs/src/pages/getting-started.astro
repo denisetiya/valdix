@@ -1,0 +1,32 @@
+---
+import Base from "../layouts/Base.astro";
+---
+<Base title="Quick start" description="Install valdix, write your first schema, read your first error.">
+  <h1>Quick start</h1>
+  <p class="lede">Install, define a schema, parse. Three steps, one dependency (none).</p>
+  <h2>Install</h2>
+  <pre><code>npm install valdix</code></pre>
+  <h2>First schema</h2>
+  <pre><code>import v from "valdix";
+
+const Signup = v.object(&#123;
+  name: v.string().min(3),
+  email: v.string().email(),
+  age: v.number().min(18),
+&#125;);
+
+type Signup = v.Infer&lt;typeof Signup&gt;;
+// → &#123; name: string; email: string; age: number &#125;</code></pre>
+  <h2>First error</h2>
+  <pre><code>v.useLang("id");
+const r = Signup.safeParse(&#123; name: "", email: "bad", age: 15 &#125;);
+// r.errors[0].message === "name minimal 3 karakter"
+// r.errors[1].message === "Alamat email tidak valid"
+// r.errors[2].message === "age minimal 18"</code></pre>
+  <p>Each error carries <code>path</code>, <code>code</code>, <code>message</code>, <code>field</code>, and <code>description</code>. Map <code>r.errors</code> directly in your UI.</p>
+  <h2>Next</h2>
+  <ul>
+    <li><a href="/api">API</a> for every factory and modifier.</li>
+    <li><a href="/i18n">i18n</a> for language switching and custom locales.</li>
+  </ul>
+</Base>

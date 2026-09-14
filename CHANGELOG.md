@@ -5,6 +5,31 @@ All notable changes to Valdix will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+String validators: `e164()`, `jwt()`, `mac()`, `semver()`, `creditCard()` (Luhn), `imei()` (Luhn), `hash("md5" | "sha1" | "sha256" | "sha512")`, `hex()`, `base64url()`, `lowercaseCheck()`, `uppercaseCheck()`, `normalized()`.
+
+Number: `nan()` opt-in (NaN still rejected by default), `step(n)` alias of multipleOf, custom messages on `int/positive/nonnegative/negative/nonpositive/finite/safe/multipleOf`.
+
+BigInt: `min(n)` / `max(n)`.
+
+Record: `min(n)` / `max(n)` / `nonempty()`, transformed keys used for path and output.
+
+Tuple: `restItems(schema)` for extra items.
+
+Factories: `v.file()` with `maxSize()` / `mime()`, `v.templateLiteral(parts)`, `v.custom(guard)`.
+
+JSON Schema: `anyOf` for unions, `allOf` for intersections.
+
+Locales: messages for all new validations in `en` and `id` (other locales fall back to `en`).
+
+### Fixed
+
+- Record key errors now carry the key path.
+- `v.number().nan()` accepts only NaN and rejects other numbers.
+
 ## [0.6.0] - 2026-06-18
 
 ### Performance
@@ -125,7 +150,7 @@ Plus the existing 3: `en`, `id`, `jp`. All casual-tone, all field-aware (`{{fiel
 - All schema classes exported for advanced usage
 - JSDoc comments on all public methods (IDE intellisense)
 - 4 usage examples in `examples/`
-- Zod comparison benchmark in `tests/bench/compare.mjs`
+- Zod comparison benchmark in `benchmark/compare.mjs`
 - i18n guide (`docs/i18n.md`)
 - Migration guide (`docs/migrating-from-zod.md`)
 

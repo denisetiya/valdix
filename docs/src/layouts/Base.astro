@@ -1,0 +1,46 @@
+---
+// Layout: single column docs shell. Reason: docs are read, not browsed;
+// one column keeps line length readable and nav always visible.
+import { ClientRouter } from "astro:transitions";
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = "Valdix: schema validation with messages your users can read." } = Astro.props;
+const path = Astro.url.pathname;
+---
+<!doctype html>
+<html lang="en" transition:animate="none">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} · Valdix</title>
+    <meta name="description" content={description} />
+    <link rel="stylesheet" href="/styles.css" />
+    <ClientRouter />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="site-nav" aria-label="Main">
+        <a href="/" class="brand">valdix <span class="version">v0.6</span></a>
+        <div class="nav-links">
+          <a href="/getting-started" aria-current={path.startsWith("/getting-started") ? "page" : undefined}>Start</a>
+          <a href="/api" aria-current={path.startsWith("/api") ? "page" : undefined}>API</a>
+          <a href="/i18n" aria-current={path.startsWith("/i18n") ? "page" : undefined}>i18n</a>
+          <a href="/benchmark" aria-current={path.startsWith("/benchmark") ? "page" : undefined}>Benchmark</a>
+          <a href="/migrating-from-zod" aria-current={path.startsWith("/migrating-from-zod") ? "page" : undefined}>From Zod</a>
+        </div>
+      </nav>
+    </header>
+    <main id="main" class="page" tabindex="-1">
+      <slot />
+    </main>
+    <footer class="site-footer">
+      <p>Valdix · MIT license · Zero dependencies</p>
+      <p><a href="https://github.com/denisetiya/valdix">GitHub</a> · <a href="https://www.npmjs.com/package/valdix">npm</a></p>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,49 @@
+---
+import Base from "../layouts/Base.astro";
+---
+<Base title="Benchmark" description="How valdix measures parse throughput, and the measured results.">
+  <h1>Benchmark</h1>
+  <p class="lede">Two scripts, one rule: measure <code>schema.parse(input)</code> on a fixed input, report ms and ops/s, nothing else.</p>
+  <h2>Scripts</h2>
+  <table>
+    <tr><th>Script</th><th>Command</th><th>What it does</th></tr>
+    <tr><td><code>benchmark/run.mjs</code></td><td><code>npm run bench</code></td><td>Parses 6 valdix schemas 50,000 times each. No dependency.</td></tr>
+    <tr><td><code>benchmark/compare.mjs</code></td><td><code>npm run bench:compare</code></td><td>Parses 5 equivalent valdix/zod pairs 100,000 times each. Requires <code>zod@3</code>.</td></tr>
+  </table>
+  <h2>Method</h2>
+  <ol>
+    <li>Build first: <code>npm run build</code>. Both scripts import <code>../dist/index.js</code>.</li>
+    <li>Warmup: 1,000 parses per schema. V8 compiles the hot path so the loop measures steady state, not first-call cost.</li>
+    <li>Time with <code>performance.now()</code> around a tight <code>for</code> loop. No async, no I/O inside.</li>
+    <li>ops/s is iterations divided by elapsed seconds.</li>
+  </ol>
+  <h2>Measured results</h2>
+  <p>Machine: AMD Ryzen 5 6600H (12 threads), 16 GB RAM, Arch Linux kernel 6.18.38-1-lts, Node v24.15.0 x64. Valdix 0.6.0, averaged across 5 runs on 2026-09-14:</p>
+  <table>
+    <tr><th>case</th><th>avg ops/s</th><th>run 1</th><th>run 2</th><th>run 3</th><th>run 4</th><th>run 5</th></tr>
+    <tr><td>string</td><td>4.43M</td><td>3.64M</td><td>4.31M</td><td>3.45M</td><td>6.33M</td><td>4.44M</td></tr>
+    <tr><td>email</td><td>3.66M</td><td>3.16M</td><td>4.75M</td><td>2.88M</td><td>4.36M</td><td>3.14M</td></tr>
+    <tr><td>minLen</td><td>5.52M</td><td>6.47M</td><td>5.04M</td><td>4.85M</td><td>5.56M</td><td>5.70M</td></tr>
+    <tr><td>number</td><td>5.12M</td><td>5.29M</td><td>4.72M</td><td>4.63M</td><td>6.86M</td><td>4.10M</td></tr>
+    <tr><td>obj</td><td>561k</td><td>512k</td><td>703k</td><td>509k</td><td>564k</td><td>519k</td></tr>
+    <tr><td>array</td><td>2.84M</td><td>2.95M</td><td>3.04M</td><td>2.17M</td><td>2.98M</td><td>3.04M</td></tr>
+  </table>
+  <p>Per-run spread is wide (CPU frequency scaling on a laptop). Use the average, not a single run.</p>
+  <h2>Against Zod</h2>
+  <p>Same machine, Zod 3.25.76, 100,000 iterations per case, averaged across 5 runs. Valdix leads on email, numbers, objects, and arrays; plain strings are tied. Throughput still flips by machine and Zod version, so re-run on your hardware before repeating a speed claim.</p>
+  <table>
+    <tr><th>case</th><th>Valdix avg</th><th>Zod avg</th><th>result here</th></tr>
+    <tr><td>string</td><td>6.06M</td><td>6.21M</td><td>about tied</td></tr>
+    <tr><td>email</td><td>4.33M</td><td>3.16M</td><td>Valdix about 1.4x faster</td></tr>
+    <tr><td>number</td><td>7.75M</td><td>5.48M</td><td>Valdix about 1.4x faster</td></tr>
+    <tr><td>object</td><td>1.28M</td><td>1.04M</td><td>Valdix about 1.2x faster</td></tr>
+    <tr><td>array</td><td>4.27M</td><td>1.48M</td><td>Valdix about 2.9x faster</td></tr>
+  </table>
+  <h2>Reproduce</h2>
+  <pre><code>cd /tmp &amp;&amp; mkdir bench &amp;&amp; cd bench &amp;&amp; npm init -y &amp;&amp; npm i zod@3
+ln -s /path/to/valdix/dist ./valdix
+for i in 1 2 3 4 5; do node /path/to/valdix/benchmark/compare.mjs; done</code></pre>
+  <p>Average the 5 runs per case on an idle machine. Record CPU, Node version, valdix version, zod version, iteration count, and run count. Numbers from different machines are not comparable.</p>
+  <h2>Limits</h2>
+  <p>These scripts do not measure validation failure paths, async refinements, bundle size, memory use, or type inference quality. A 10-20% gap is noise. A 2x gap is real.</p>
+</Base>

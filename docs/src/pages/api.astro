@@ -1,0 +1,113 @@
+---
+import Base from "../layouts/Base.astro";
+---
+<Base title="API" description="Every valdix factory, modifier, and output shape.">
+  <h1>API</h1>
+  <p class="lede">One page, every method. Copy the line you need.</p>
+  <h2>Primitives</h2>
+  <pre><code>v.string()
+v.string().min(3).max(50).length(10)
+v.string().email().url().uuid()
+v.string().trim().lowercase().uppercase()
+v.string().startsWith("api_").endsWith("_v1").includes("foo")
+v.string().regex(/^\d+$/)
+v.string().alpha()    // letters only (a-z, A-Z, Unicode)
+v.string().numeric()  // digits only (0-9)
+v.string().symbol()   // non-alphanumeric only
+v.string().phone()    // phone number
+v.string().e164()     // strict E.164 (+6281234567890)
+v.string().jwt()      // three base64url segments
+v.string().mac()      // AA:BB:CC:DD:EE:FF
+v.string().semver()   // 1.2.3 with prerelease/build
+v.string().creditCard() // Luhn check
+v.string().imei()     // 15-digit IMEI with Luhn check
+v.string().hash("sha256") // hex digest (md5/sha1/sha256/sha512)
+v.string().hex()      // hex with optional 0x
+v.string().base64url() // base64url-encoded
+v.string().lowercaseCheck() // must be lowercase
+v.string().uppercaseCheck() // must be uppercase
+v.string().normalized() // must be NFC-normalized
+v.string().ip()       // IPv4/IPv6
+v.string().ip(4)      // IPv4 only
+v.string().cidr()
+v.string().base64()
+v.string().cuid().cuid2().ulid().nanoid().emoji()
+v.string().datetime().date().time()
+v.string().nonempty() // 1 char or more
+v.number().min(0).max(100).int().positive().multipleOf(5)
+v.number().lt(50).gt(0).safe().finite()
+v.number().nan()      // accept NaN (rejected by default)
+v.number().step(5)    // multiple of 5 from 0
+v.boolean()
+v.date().min(new Date("2024-01-01")).max(new Date("2024-12-31"))
+v.bigint().min(0n).max(100n)
+v.file().maxSize(1048576).mime("image/png")
+v.templateLiteral(["Hello, ", v.string().min(1), "!"])
+v.custom((x): x is string => typeof x === "string")
+v.literal("admin")
+v.enum(["a", "b", "c"])
+v.nativeEnum(MyEnum)</code></pre>
+  <h2>Objects</h2>
+  <pre><code>const User = v.object(&#123;
+  name: v.string(),
+  age: v.number().optional(),
+  role: v.enum(["admin", "user"]).default("user"),
+&#125;);
+
+User.partial()            // all fields optional
+User.required()           // all fields required
+User.required(["name"])   // only these required
+User.pick(["name"])       // &#123; name: string &#125;
+User.omit(["age"])
+User.strict()             // rejects unknown keys
+User.passthrough()        // keeps unknown keys
+User.catchall(v.string()) // unknown keys validated as string
+User.keyof()              // enum of shape keys
+User.readonly()           // type-level Readonly
+User.extend(&#123; role: v.string() &#125;)
+User.merge(other)</code></pre>
+  <h2>Collections, unions, modifiers</h2>
+  <pre><code>v.array(v.string()).min(1).max(10)
+v.array(v.string()).nonempty()
+v.array(v.string()).unique()
+v.tuple(v.string(), v.number())
+v.set(v.string())
+v.map(v.string(), v.number())
+v.union([v.string(), v.number()])
+v.string().or(v.number())
+v.intersection(A, B)      // A &amp; B
+v.intersection(A, B, C)   // variadic
+A.and(B).and(C)
+v.string().optional()     // string | undefined
+v.string().nullable()     // string | null
+v.string().nullish()      // string | null | undefined
+v.string().default("n/a")
+v.string().catch("fallback")
+v.string().brand("UserId")
+v.string().readonly()</code></pre>
+  <h2>Validation flow</h2>
+  <pre><code>v.string().refine(s =&gt; s.length &gt; 0, "Must be non-empty")
+v.string().superRefine((val, ctx) =&gt; &#123;
+  if (val.length &lt; 8) ctx.addIssue(&#123; code: "custom", message: "Min 8 chars" &#125;);
+&#125;)
+v.string().transform(s =&gt; parseInt(s))
+v.string().trim().lowercase().pipe(v.string().min(1))
+v.coerce.number()         // input → Number(input)
+v.preprocess(x =&gt; JSON.parse(x), v.object(&#123; x: v.number() &#125;))
+v.lazy(() =&gt; Category)   // recursive schemas
+schema.safeParse(input)   // &#123; success, data &#125; or &#123; success, errors &#125;
+schema.parse(input)       // data or throws ValdixError
+await schema.safeParseAsync(input)
+schema["~standard"]()     // Standard Schema interop
+schema.toJSONSchema()     // JSON Schema export</code></pre>
+  <h2>Errors</h2>
+  <pre><code>v.string().min(3, "Minimal 3 karakter ya")
+v.object(&#123;
+  userName: v.string().min(3, "&#123;&#123;field&#125;&#125; minimal 3 karakter"),
+&#125;)
+// → "user name minimal 3 karakter"
+v.setErrorMap((issue, ctx) =&gt; `$&#123;issue.code&#125;: $&#123;ctx.defaultError&#125;`)
+v.string().email().describe("Email address")
+// → issue.description === "Email address"
+v.registerLocale("fr", &#123; required: () =&gt; "Ce champ est requis" &#125;)</code></pre>
+</Base>

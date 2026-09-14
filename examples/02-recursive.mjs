@@ -1,4 +1,4 @@
-// Recursive type example — tree structure (JS only)
+// Recursive type example: tree structure (JS only)
 // For TypeScript, see examples/02-recursive.ts
 import v from "../dist/index.js";
 

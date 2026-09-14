@@ -21,5 +21,15 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
-      - run: npm test
+      - run: npm run test:esm
+      - run: npm run test:cjs
+      - run: npm run test:e2e
       - run: npm run size
+      - run: npm --prefix docs ci
+      - run: npm run docs:build
+      - name: E2E examples (consumer smoke)
+        run: |
+          for f in examples/*.mjs; do
+            echo "--- $f ---"
+            node "$f" > /dev/null
+          done

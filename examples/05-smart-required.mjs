@@ -1,8 +1,8 @@
 // v0.4.0 features: alpha, numeric, symbol, phone + smart required
 import v from "../dist/index.js";
 
-// 1. Smart "required" behavior — empty / null / undefined → custom required message,
-//    non-empty but failing other rules → that rule's message.
+// 1. Smart "required" behavior: empty / null / undefined use the custom required message.
+//    Non-empty values that fail other rules use that rule's message.
 const userSchema = v.object({
   name: v.string()
     .required("Name tidak boleh kosong")

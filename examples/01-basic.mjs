@@ -1,4 +1,4 @@
-// Basic example — user signup form validation
+// Basic example: user signup form validation
 import v from "../dist/index.js";
 
 const SignupSchema = v.object({

@@ -3,7 +3,8 @@ import { NumberSchema, BooleanSchema } from "./schemas/number.js";
 import {
   DateSchema, LiteralSchema, EnumSchema, BigIntSchema, InstanceOfSchema, NativeEnumSchema,
   NeverSchema, AnySchema, UnknownSchema,
-  NullSchema, UndefinedSchema, VoidSchema
+  NullSchema, UndefinedSchema, VoidSchema,
+  FileSchema, TemplateLiteralSchema, CustomSchema, type FileConstraints
 } from "./schemas/primitives.js";
 import { ObjectSchema, type ObjectShape } from "./schemas/object.js";
 import { ArraySchema, TupleSchema } from "./schemas/array.js";
@@ -12,7 +13,6 @@ import { DiscriminatedUnionSchema, LazySchema, SetSchema, MapSchema } from "./sc
 import { FunctionSchema, PromiseSchema } from "./schemas/function.js";
 import { Schema, TransformSchema, PipeSchema, OptionalSchema, NullableSchema, DefaultSchema, CatchSchema, BrandSchema, IntersectionSchema, type Infer, type Input } from "./core/schema.js";
 
-// ── Primitives ──
 export const string = () => new StringSchema();
 export const number = () => new NumberSchema();
 export const boolean = () => new BooleanSchema();
@@ -28,19 +28,19 @@ export const unknown = () => new UnknownSchema();
 export const nullType = () => new NullSchema();
 export const undefinedType = () => new UndefinedSchema();
 export const voidType = () => new VoidSchema();
+export const file = (constraints?: FileConstraints) => new FileSchema(constraints);
+export const templateLiteral = (parts: (string | Schema<any, any>)[]) => new TemplateLiteralSchema(parts);
+export const custom = <T>(check: (value: unknown) => value is T) => new CustomSchema(check);
 
-// ── Objects ──
 export const object = <T extends ObjectShape>(shape: T) => new ObjectSchema(shape, "strip");
 export const strictObject = <T extends ObjectShape>(shape: T) => new ObjectSchema(shape, "strict");
 
-// ── Collections ──
 export const array = <T extends Schema<any, any>>(item: T) => new ArraySchema(item);
 export const tuple = <T extends Schema<any, any>[]>(...items: T) => new TupleSchema(items);
 export const record = <K extends Schema<string>, V extends Schema<any, any>>(key: K, value: V) => new RecordSchema(key, value);
 export const set = <T extends Schema<any, any>>(item: T) => new SetSchema(item);
 export const map = <K extends Schema<any, any>, V extends Schema<any, any>>(key: K, value: V) => new MapSchema(key, value);
 
-// ── Union / Intersection ──
 export const union = <T extends Schema<any, any>[]>(schemas: T): T extends [infer First] ? (First extends Schema<any, any> ? First : never) : Schema<any> =>
   schemas.length === 1 ? schemas[0] as any : schemas.reduce((acc, s) => acc.or(s)) as any;
 
@@ -49,14 +49,12 @@ export const intersection = <T extends Schema<any, any>[]>(...schemas: T): Inter
   return new IntersectionSchema(schemas);
 };
 
-// ── Advanced ──
 export const discriminatedUnion = <TKey extends string, TSchemas extends Record<string, Schema<any, any>>>(
   key: TKey, schemas: TSchemas
 ) => new DiscriminatedUnionSchema(key, schemas);
 
 export const lazy = <T extends Schema<any, any>>(getter: () => T) => new LazySchema(getter);
 
-// ── Preprocess / Coerce ──
 export const preprocess = <TNext>(fn: (input: unknown) => TNext, schema: Schema<TNext>): PipeSchema<unknown, unknown, TNext> => {
   const pre = new TransformSchema<unknown, unknown, TNext>(
     new AnySchema() as unknown as Schema<unknown, unknown>,
@@ -73,16 +71,13 @@ export const coerce = {
   date: () => preprocess((v) => v instanceof Date ? v : new Date(String(v)), date()),
 };
 
-// ── Function / Promise ──
 /** Schema for function arguments and return values. */
 export const fn = () => new FunctionSchema();
 /** Schema for a Promise's resolved value. */
 export const promise = <T extends Schema<any, any>>(inner: T) => new PromiseSchema(inner);
 
-// ── Re-exports ──
 export type { Infer, Input };
 
-// ── v namespace (default & named export) ──
 import { useLang as _useLang, registerLocale as _registerLocale, setErrorMap as _setErrorMap } from "./core/schema.js";
 
 /** Single namespace bundling all schema factories. */
@@ -93,6 +88,7 @@ export const v = {
   null: nullType,
   undefined: undefinedType,
   void: voidType,
+  file, templateLiteral, custom,
   object, strictObject,
   array, tuple, record, set, map,
   union, intersection,

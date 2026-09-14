@@ -1,5 +1,5 @@
 /**
- * Valdix — multi-language casual-error validation library.
+ * Valdix: multi-language casual-error validation library.
  *
  * @example
  * ```ts
@@ -65,7 +65,8 @@ export { FunctionSchema, PromiseSchema } from "./schemas/function.js";
 export {
   DateSchema, LiteralSchema, EnumSchema, BigIntSchema, InstanceOfSchema, NativeEnumSchema,
   NeverSchema, AnySchema, UnknownSchema,
-  NullSchema, UndefinedSchema, VoidSchema
+  NullSchema, UndefinedSchema, VoidSchema,
+  FileSchema, TemplateLiteralSchema, CustomSchema, type FileConstraints
 } from "./schemas/primitives.js";
 export { useLang, registerLocale, setErrorMap, getErrorMap, getLocales, jsonSchemaOf } from "./core/schema.js";
 export type { ValdixIssue, IssueCode, SafeParseResult, SafeParseSuccess, SafeParseFailure, ParseOptions, LocaleCatalog, ErrorMap, PathSegment } from "./core/types.js";

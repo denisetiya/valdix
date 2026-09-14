@@ -1,7 +1,7 @@
 {
   "name": "valdix",
   "version": "0.6.0",
-  "description": "Zero-dependency TypeScript-first schema validation with 17 built-in locales and casual end-user-ready error messages. 1KB gzipped, 2.5-4x faster than Zod on arrays.",
+  "description": "Zero-dependency TypeScript-first schema validation with 17 built-in locales and casual end-user-ready error messages. About 1KB gzipped.",
   "type": "module",
   "main": "./dist/cjs/index.cjs",
   "module": "./dist/index.js",
@@ -26,10 +26,16 @@
     "clean": "node ./scripts/clean.mjs",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
     "test": "npm run test:esm && npm run test:cjs",
-    "test:esm": "node --test tests/*.test.mjs",
+    "test:esm": "npm run test:unit && npm run test:e2e",
+    "test:unit": "node --test tests/valdix.test.mjs tests/valdix-v2.test.mjs tests/v0.4.test.mjs tests/v0.6-locales.test.mjs tests/v0.7.test.mjs tests/function.test.mjs tests/tree-shake.test.mjs",
     "test:cjs": "node tests/cjs.test.cjs",
-    "bench": "node tests/bench/run.mjs",
-    "size": "node scripts/size.mjs"
+    "test:e2e": "node --test tests/e2e.test.mjs",
+    "bench": "node benchmark/run.mjs",
+    "bench:compare": "node benchmark/compare.mjs",
+    "size": "node scripts/size.mjs",
+    "docs:dev": "npm --prefix docs run dev",
+    "docs:build": "npm --prefix docs run build",
+    "docs:preview": "npm --prefix docs run preview"
   },
   "keywords": [
     "validation",
@@ -48,6 +54,6 @@
     "url": "git+https://github.com/denisetiya/valdix.git"
   },
   "devDependencies": {
-    "typescript": "5.9.3"
+    "typescript": "7.0.2"
   }
 }

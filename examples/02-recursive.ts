@@ -1,4 +1,4 @@
-// Recursive type example — tree structure (TypeScript)
+// Recursive type example: tree structure (TypeScript)
 import v, { type Infer } from "valdix";
 
 type Category = {

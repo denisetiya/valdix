@@ -49,9 +49,26 @@ export const EN: LocaleCatalog = {
     if (i.validation === "numeric") return "Digits only (0-9)";
     if (i.validation === "symbol") return "Symbols only, no letters or digits";
     if (i.validation === "phone") return "That doesn't look like a valid phone number";
+    if (i.validation === "e164") return "Use international format, e.g. +6281234567890";
+    if (i.validation === "jwt") return "This doesn't look like a valid token";
+    if (i.validation === "mac") return "This doesn't look like a valid MAC address";
+    if (i.validation === "semver") return "Use version format like 1.2.3";
+    if (i.validation === "creditCard") return "That doesn't look like a valid card number";
+    if (i.validation === "imei") return "IMEI must be 15 digits";
+    if (i.validation === "hash") return "This doesn't look like a valid hash";
+    if (i.validation === "hex") return "Hex only (0-9, a-f)";
+    if (i.validation === "base64url") return "This doesn't look like valid base64url";
+    if (i.validation === "lowercase") return "Use lowercase letters only";
+    if (i.validation === "uppercase") return "Use uppercase letters only";
+    if (i.validation === "normalized") return "Text must be normalized (NFC)";
     return "Invalid format";
   },
-  invalid_number: () => "Please enter a valid number",
+  invalid_number: (i) => {
+    if (i.validation === "nan") return "Must be NaN";
+    if (i.validation === "step") return "Number must step evenly";
+    if (i.validation === "multiple") return "Number must be a multiple";
+    return "Please enter a valid number";
+  },
   invalid_date: () => "Please enter a valid date",
   invalid_array: () => "Expected a list of items",
   invalid_union: () => "Value didn't match any expected format",

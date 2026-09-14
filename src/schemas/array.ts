@@ -131,31 +131,45 @@ export class ArraySchema<T extends Schema<any, any>>
 
 export class TupleSchema<T extends Schema<any, any>[]>
   extends Schema<{ [K in keyof T]: T[K] extends Schema<infer O, any> ? O : never }> {
-  constructor(private readonly items: T) { super(); }
+  constructor(
+    private readonly items: T,
+    private readonly rest?: Schema<any, any>
+  ) { super(); }
+  /** Allow extra items validated by the given schema. */
+  restItems<R extends Schema<any, any>>(schema: R): TupleSchema<[...T, ...R[]]> {
+    return new TupleSchema([...this.items, schema] as any, schema) as any;
+  }
   _toJSONSchema(): unknown {
-    return {
+    const base: any = {
       type: "array",
       items: this.items.map((s) => (s as any)._toJSONSchema ? (s as any)._toJSONSchema() : {}),
       minItems: this.items.length,
-      maxItems: this.items.length,
       ...(this.description ? { description: this.description } : {}),
     };
+    if (this.rest) base.additionalItems = (this.rest as any)._toJSONSchema ? (this.rest as any)._toJSONSchema() : {};
+    else base.maxItems = this.items.length;
+    return base;
   }
   _parse(input: unknown, ctx: ParseContext): InternalResult<any> {
     if (!Array.isArray(input)) {
       ctx.addIssue({ code: "invalid_type", expected: "array", received: typeOf(input) });
       return invalid;
     }
-    if (input.length !== this.items.length) {
+    if (this.rest) {
+      if (input.length < this.items.length) {
+        ctx.addIssue({ code: "invalid_tuple_length", minimum: this.items.length, maximum: input.length });
+        return invalid;
+      }
+    } else if (input.length !== this.items.length) {
       ctx.addIssue({ code: "invalid_tuple_length", minimum: this.items.length, maximum: input.length });
       return invalid;
     }
-    const out: unknown[] = new Array(this.items.length);
+    const out: unknown[] = new Array(input.length);
     let hasErr = false;
     const pathLen = ctx.pathStack.length;
-    for (let i = 0; i < this.items.length; i++) {
+    for (let i = 0; i < input.length; i++) {
+      const schema = i < this.items.length ? this.items[i]! : this.rest!;
       ctx.pathStack.push(i);
-      const schema = this.items[i]!;
       const v = input[i];
       const parsed = schema.description
         ? schema._parseWithContext(v, ctx)

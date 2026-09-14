@@ -17,7 +17,7 @@ export type Input<T extends Schema<any, any>> = T extends Schema<any, infer I> ?
 type UnionToIntersection<U> =
   (U extends any ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
 
-// ─── Standard Schema interface (https://standardschema.dev) ───
+// Standard Schema interface (https://standardschema.dev)
 export interface StandardSchemaProps<I, O> {
   version: 1;
   vendor: "valdix";
@@ -35,11 +35,9 @@ export abstract class Schema<TOutput = unknown, TInput = TOutput> {
   readonly _input!: TInput;
   description?: string;
 
-  // ── Internal parse entry ──
   // Inlined description handling for the common no-description case.
-  // For schemas WITH description, wraps _parse with descriptionStack push/pop.
-  // For schemas WITHOUT description, the fast path just calls _parse directly
-  // (V8 inlines this 4-line function for monomorphic call sites).
+  // Schemas WITH description wrap _parse with descriptionStack push/pop.
+  // Schemas WITHOUT description call _parse directly (4-line fast path).
   _parseWithContext(input: unknown, ctx: ParseContext): InternalResult<TOutput> {
     const d = this.description;
     if (d !== undefined) ctx.descriptionStack.push(d);
@@ -52,14 +50,13 @@ export abstract class Schema<TOutput = unknown, TInput = TOutput> {
 
   /**
    * Parse a value, throwing on failure.
-   * For non-recursive schemas this is the fast path — no `seen` Set allocation.
+   * For non-recursive schemas this is the fast path (no `seen` Set allocation).
    * Lazy schemas override `parse` to add cycle protection.
    */
   parse(input: unknown, options?: ParseOptions): TOutput {
     const ctx = createParseContext(options, localeRegistry, defaultLang, errorMap);
-    // Fast path: skip the wrapper for schemas without description.
-    // The wrapper is just a description push/pop, so for no-description
-    // schemas (the common case) we can call _parse directly.
+    // No-description is the common case, so call _parse directly here
+    // instead of going through the _parseWithContext wrapper.
     const d = this.description;
     if (d !== undefined) ctx.descriptionStack.push(d);
     const result = this._parse(input, ctx);
@@ -105,8 +102,6 @@ export abstract class Schema<TOutput = unknown, TInput = TOutput> {
   protected async _parseAsyncInner(input: unknown, ctx: ParseContext): Promise<InternalResult<TOutput>> {
     return this._parse(input, ctx);
   }
-
-  // ── Modifiers ──
 
   /** Allow `undefined` in addition to the current type. */
   optional(): OptionalSchema<Schema<TOutput, TInput>> {
@@ -195,13 +190,11 @@ export abstract class Schema<TOutput = unknown, TInput = TOutput> {
   }
 }
 
-// ── Modifiers ──
-
 export class OptionalSchema<T extends Schema<any, any>> extends Schema<T["_output"] | undefined, T["_input"] | undefined> {
   constructor(readonly inner: T) { super(); }
   _parse(input: unknown, ctx: ParseContext): InternalResult<T["_output"] | undefined> {
-    // Treat undefined OR empty string as "not provided" — empty strings
-    // are a soft form of missing in form fields.
+    // Form fields submit "" for empty. Treat it the same as undefined here
+    // so optional fields do not fail their inner min/format checks.
     if (input === undefined || input === "") return ok(undefined);
     return this.inner._parseWithContext(input, ctx);
   }
@@ -343,6 +336,9 @@ export class UnionSchema<T extends Schema<any, any>[]> extends Schema<
   { [K in keyof T]: T[K] extends Schema<infer O, any> ? O : never }[number]
 > {
   constructor(private readonly schemas: T) { super(); }
+  _toJSONSchema(): unknown {
+    return { anyOf: this.schemas.map((s) => (s as any)._toJSONSchema ? (s as any)._toJSONSchema() : {}) };
+  }
   _parse(input: unknown, ctx: ParseContext): InternalResult<any> {
     for (const schema of this.schemas) {
       const child = ctx.fork();
@@ -357,6 +353,9 @@ export class IntersectionSchema<TSchemas extends Schema<any, any>[]>
   extends Schema<TSchemas extends [] ? unknown : UnionToIntersection<TSchemas[number]["_output"]>>
 {
   constructor(private readonly schemas: TSchemas) { super(); }
+  _toJSONSchema(): unknown {
+    return { allOf: this.schemas.map((s) => (s as any)._toJSONSchema ? (s as any)._toJSONSchema() : {}) };
+  }
   _parse(input: unknown, ctx: ParseContext): InternalResult<any> {
     let merged: any = input;
     for (let i = 0; i < this.schemas.length; i++) {
@@ -380,7 +379,6 @@ export class ValdixError extends Error {
   }
 }
 
-// ── JSON Schema generator ──
 export const jsonSchemaOf = (schema: Schema<any, any>): unknown => {
   if (typeof (schema as any)._toJSONSchema === "function") {
     return (schema as any)._toJSONSchema();

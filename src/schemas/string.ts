@@ -17,6 +17,36 @@ const NUMERIC_RE = /^[0-9]+$/;
 const SYMBOL_RE = /^[\p{S}\p{P}\p{Z}]+$/u;
 // Phone: E.164 (+, country code, number) or common local formats (digits with optional separators)
 const PHONE_RE = /^\+?[0-9]{1,4}?[-. \s]?(\(?[0-9]{1,4}\)?[-. \s]?){1,4}[0-9]{1,9}$/;
+const E164_RE = /^\+[1-9]\d{6,14}$/;
+const JWT_RE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+const MAC_RE = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
+const SEMVER_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
+const HEX_RE = /^(?:0x)?[0-9a-fA-F]+$/;
+const BASE64URL_RE = /^[A-Za-z0-9_-]*={0,2}$/;
+
+const luhnValid = (digits: string): boolean => {
+  let sum = 0;
+  let double = false;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let d = digits.charCodeAt(i) - 48;
+    if (double) {
+      d *= 2;
+      if (d > 9) d -= 9;
+    }
+    sum += d;
+    double = !double;
+  }
+  return sum % 10 === 0;
+};
+
+const isCreditCard = (s: string): boolean => {
+  const digits = s.replace(/[\s-]/g, "");
+  return /^[0-9]{13,19}$/.test(digits) && luhnValid(digits);
+};
+
+const isImei = (s: string): boolean => /^\d{15}$/.test(s) && luhnValid(s);
+
+const HASH_LENGTHS: Record<string, number> = { md5: 32, sha1: 40, sha256: 64, sha512: 128 };
 
 const isValidIPv4 = (s: string): boolean => {
   const parts = s.split(".");
@@ -57,6 +87,18 @@ type Rule =
   | { kind: "numeric"; message?: string }
   | { kind: "symbol"; message?: string }
   | { kind: "phone"; message?: string }
+  | { kind: "e164"; message?: string }
+  | { kind: "jwt"; message?: string }
+  | { kind: "mac"; message?: string }
+  | { kind: "semver"; message?: string }
+  | { kind: "creditCard"; message?: string }
+  | { kind: "imei"; message?: string }
+  | { kind: "hash"; algorithm: "md5" | "sha1" | "sha256" | "sha512"; message?: string }
+  | { kind: "hex"; message?: string }
+  | { kind: "base64url"; message?: string }
+  | { kind: "lowercase"; message?: string }
+  | { kind: "uppercase"; message?: string }
+  | { kind: "normalize"; message?: string }
   | { kind: "required"; message?: string }
   | { kind: "regex"; value: RegExp; message?: string }
   | { kind: "startsWith"; value: string }
@@ -89,6 +131,19 @@ export class StringSchema extends Schema<string> {
   private _hasNumeric = false;
   private _hasSymbol = false;
   private _hasPhone = false;
+  private _hasE164 = false;
+  private _hasJwt = false;
+  private _hasMac = false;
+  private _hasSemver = false;
+  private _hasCreditCard = false;
+  private _hasImei = false;
+  private _hashAlgo?: "md5" | "sha1" | "sha256" | "sha512";
+  private _hasHex = false;
+  private _hasBase64url = false;
+  private _hasLowercase = false;
+  private _hasUppercase = false;
+  private _hasNormalize = false;
+  private _requiredMsg?: string;
 
   constructor(rules: Rule[] = []) {
     super();
@@ -96,6 +151,7 @@ export class StringSchema extends Schema<string> {
     for (const r of rules) {
       if (r.kind === "min") { this._minLen = r.value; this._minMsg = r.message; }
       if (r.kind === "max") { this._maxLen = r.value; this._maxMsg = r.message; }
+      if (r.kind === "required") this._requiredMsg = r.message;
       if (r.kind === "email") this._hasEmail = true;
       if (r.kind === "url") this._hasUrl = true;
       if (r.kind === "uuid") this._hasUuid = true;
@@ -114,13 +170,26 @@ export class StringSchema extends Schema<string> {
       if (r.kind === "numeric") this._hasNumeric = true;
       if (r.kind === "symbol") this._hasSymbol = true;
       if (r.kind === "phone") this._hasPhone = true;
+      if (r.kind === "e164") this._hasE164 = true;
+      if (r.kind === "jwt") this._hasJwt = true;
+      if (r.kind === "mac") this._hasMac = true;
+      if (r.kind === "semver") this._hasSemver = true;
+      if (r.kind === "creditCard") this._hasCreditCard = true;
+      if (r.kind === "imei") this._hasImei = true;
+      if (r.kind === "hash") this._hashAlgo = r.algorithm;
+      if (r.kind === "hex") this._hasHex = true;
+      if (r.kind === "base64url") this._hasBase64url = true;
+      if (r.kind === "lowercase") this._hasLowercase = true;
+      if (r.kind === "uppercase") this._hasUppercase = true;
+      if (r.kind === "normalize") this._hasNormalize = true;
     }
   }
   private with(rule: Rule): StringSchema {
-    // Pass rules including the new one — the constructor will pick up
+    // Pass rules including the new one. The constructor picks up
     // _minLen/_maxLen/_minMsg/_maxMsg from the new rule.
     const s = new StringSchema([...this.rules, rule]);
     s.customValidation = this.customValidation;
+    if (rule.kind === "required") s._requiredMsg = rule.message;
     return s;
   }
 
@@ -212,9 +281,69 @@ export class StringSchema extends Schema<string> {
     s.customValidation = { validation: "phone", format: { format: "phone" } };
     return s;
   }
+  /** Validate as strict E.164 (e.g. `+6281234567890`). */
+  e164(message?: string): StringSchema {
+    const s = this.with({ kind: "e164", message });
+    s.customValidation = { validation: "e164", format: { pattern: "^\\+[1-9]\\d{6,14}$" } };
+    return s;
+  }
+  /** Validate as a JWT (three base64url segments). */
+  jwt(message?: string): StringSchema {
+    const s = this.with({ kind: "jwt", message });
+    s.customValidation = { validation: "jwt", format: { format: "jwt" } };
+    return s;
+  }
+  /** Validate as a MAC address (`AA:BB:CC:DD:EE:FF` or dash-separated). */
+  mac(message?: string): StringSchema {
+    const s = this.with({ kind: "mac", message });
+    s.customValidation = { validation: "mac", format: { pattern: MAC_RE.source } };
+    return s;
+  }
+  /** Validate as semver (`1.2.3`, prerelease and build metadata allowed). */
+  semver(message?: string): StringSchema {
+    const s = this.with({ kind: "semver", message });
+    s.customValidation = { validation: "semver", format: { pattern: SEMVER_RE.source } };
+    return s;
+  }
+  /** Validate as a credit card number (Luhn check, spaces/dashes allowed). */
+  creditCard(message?: string): StringSchema {
+    const s = this.with({ kind: "creditCard", message });
+    s.customValidation = { validation: "creditCard", format: { format: "credit-card" } };
+    return s;
+  }
+  /** Validate as a 15-digit IMEI (Luhn check). */
+  imei(message?: string): StringSchema {
+    const s = this.with({ kind: "imei", message });
+    s.customValidation = { validation: "imei", format: { pattern: "^\\d{15}$" } };
+    return s;
+  }
+  /** Validate as a hex hash digest (`md5`/`sha1`/`sha256`/`sha512`). */
+  hash(algorithm: "md5" | "sha1" | "sha256" | "sha512", message?: string): StringSchema {
+    const s = this.with({ kind: "hash", algorithm, message });
+    s.customValidation = { validation: "hash", format: { pattern: `^[0-9a-fA-F]{${HASH_LENGTHS[algorithm]}}$` } };
+    return s;
+  }
+  /** Validate as a hex string (optional `0x` prefix). */
+  hex(message?: string): StringSchema {
+    const s = this.with({ kind: "hex", message });
+    s.customValidation = { validation: "hex", format: { pattern: HEX_RE.source } };
+    return s;
+  }
+  /** Validate as base64url-encoded. */
+  base64url(message?: string): StringSchema {
+    const s = this.with({ kind: "base64url", message });
+    s.customValidation = { validation: "base64url", format: { pattern: BASE64URL_RE.source } };
+    return s;
+  }
+  /** Require all-lowercase letters. */
+  lowercaseCheck(message?: string): StringSchema { return this.with({ kind: "lowercase", message }); }
+  /** Require all-uppercase letters. */
+  uppercaseCheck(message?: string): StringSchema { return this.with({ kind: "uppercase", message }); }
+  /** Require NFC-normalized text. */
+  normalized(message?: string): StringSchema { return this.with({ kind: "normalize", message }); }
   /**
    * Override the "tidak boleh kosong" / "required" message for the
-   * empty/undefined/null case. The empty-string check runs first —
+   * empty/undefined/null case. The empty-string check runs first and
    * it produces this message instead of the type mismatch or min check.
    */
   required(message?: string): StringSchema { return this.with({ kind: "required", message }); }
@@ -242,8 +371,7 @@ export class StringSchema extends Schema<string> {
     // Combined check using == for nullish (matches both null and undefined).
     const isString = typeof input === "string";
     if (!isString && (input == null || input === "")) {
-      const reqRule = this.rules.find(r => r.kind === "required");
-      ctx.addIssue({ code: "required", message: reqRule?.message });
+      ctx.addIssue({ code: "required", message: this._requiredMsg });
       return invalid;
     }
     if (!isString) {
@@ -251,8 +379,7 @@ export class StringSchema extends Schema<string> {
       return invalid;
     }
     if (input.length === 0) {
-      const reqRule = this.rules.find(r => r.kind === "required");
-      ctx.addIssue({ code: "required", message: reqRule?.message });
+      ctx.addIssue({ code: "required", message: this._requiredMsg });
       return invalid;
     }
     if (this.rules.length === 0) return ok(input);
@@ -300,13 +427,29 @@ export class StringSchema extends Schema<string> {
     if (this._hasNumeric && !NUMERIC_RE.test(input)) { ctx.addIssue({ code: "invalid_string", validation: "numeric" }); return invalid; }
     if (this._hasSymbol && !SYMBOL_RE.test(input)) { ctx.addIssue({ code: "invalid_string", validation: "symbol" }); return invalid; }
     if (this._hasPhone && !PHONE_RE.test(input.replace(/[\s().-]/g, ""))) { ctx.addIssue({ code: "invalid_string", validation: "phone" }); return invalid; }
+    if (this._hasE164 && !E164_RE.test(input)) { ctx.addIssue({ code: "invalid_string", validation: "e164" }); return invalid; }
+    if (this._hasJwt && !JWT_RE.test(input)) { ctx.addIssue({ code: "invalid_string", validation: "jwt" }); return invalid; }
+    if (this._hasMac && !MAC_RE.test(input)) { ctx.addIssue({ code: "invalid_string", validation: "mac" }); return invalid; }
+    if (this._hasSemver && !SEMVER_RE.test(input)) { ctx.addIssue({ code: "invalid_string", validation: "semver" }); return invalid; }
+    if (this._hasCreditCard && !isCreditCard(input)) { ctx.addIssue({ code: "invalid_string", validation: "creditCard" }); return invalid; }
+    if (this._hasImei && !isImei(input)) { ctx.addIssue({ code: "invalid_string", validation: "imei" }); return invalid; }
+    if (this._hashAlgo && !new RegExp(`^[0-9a-fA-F]{${HASH_LENGTHS[this._hashAlgo]}}$`).test(input)) { ctx.addIssue({ code: "invalid_string", validation: "hash" }); return invalid; }
+    if (this._hasHex && !HEX_RE.test(input)) { ctx.addIssue({ code: "invalid_string", validation: "hex" }); return invalid; }
+    if (this._hasBase64url && !BASE64URL_RE.test(input)) { ctx.addIssue({ code: "invalid_string", validation: "base64url" }); return invalid; }
+    if (this._hasLowercase && input !== input.toLowerCase()) { ctx.addIssue({ code: "invalid_string", validation: "lowercase" }); return invalid; }
+    if (this._hasUppercase && input !== input.toUpperCase()) { ctx.addIssue({ code: "invalid_string", validation: "uppercase" }); return invalid; }
+    if (this._hasNormalize && input !== input.normalize("NFC")) { ctx.addIssue({ code: "invalid_string", validation: "normalized" }); return invalid; }
     // If every rule is covered by a fast path, skip the generic loop
     const fastPathCount = (this._minLen !== undefined ? 1 : 0) + (this._maxLen !== undefined ? 1 : 0)
       + (this._hasEmail ? 1 : 0) + (this._hasUrl ? 1 : 0) + (this._hasUuid ? 1 : 0) + (this._hasEmoji ? 1 : 0)
       + (this._hasDate ? 1 : 0) + (this._hasTime ? 1 : 0) + (this._hasBase64 ? 1 : 0) + (this._hasCuid ? 1 : 0)
       + (this._hasCuid2 ? 1 : 0) + (this._hasUlid ? 1 : 0) + (this._hasNanoid ? 1 : 0)
       + (this._hasDatetime ? 1 : 0) + (this._hasCidr ? 1 : 0) + (this._hasIp ? 1 : 0)
-      + (this._hasAlpha ? 1 : 0) + (this._hasNumeric ? 1 : 0) + (this._hasSymbol ? 1 : 0) + (this._hasPhone ? 1 : 0);
+      + (this._hasAlpha ? 1 : 0) + (this._hasNumeric ? 1 : 0) + (this._hasSymbol ? 1 : 0) + (this._hasPhone ? 1 : 0)
+      + (this._hasE164 ? 1 : 0) + (this._hasJwt ? 1 : 0) + (this._hasMac ? 1 : 0) + (this._hasSemver ? 1 : 0)
+      + (this._hasCreditCard ? 1 : 0) + (this._hasImei ? 1 : 0) + (this._hashAlgo ? 1 : 0)
+      + (this._hasHex ? 1 : 0) + (this._hasBase64url ? 1 : 0)
+      + (this._hasLowercase ? 1 : 0) + (this._hasUppercase ? 1 : 0) + (this._hasNormalize ? 1 : 0);
     if (fastPathCount >= this.rules.length) return ok(input);
     let failed = false;
     for (const rule of this.rules) {
@@ -424,6 +567,54 @@ export class StringSchema extends Schema<string> {
       }
       if (rule.kind === "phone" && !PHONE_RE.test(input.replace(/[\s().-]/g, ""))) {
         ctx.addIssue({ code: "invalid_string", validation: "phone", message: rule.message });
+        failed = true; if (ctx.abortEarly) return invalid;
+      }
+      if (rule.kind === "e164" && !E164_RE.test(input)) {
+        ctx.addIssue({ code: "invalid_string", validation: "e164", message: rule.message });
+        failed = true; if (ctx.abortEarly) return invalid;
+      }
+      if (rule.kind === "jwt" && !JWT_RE.test(input)) {
+        ctx.addIssue({ code: "invalid_string", validation: "jwt", message: rule.message });
+        failed = true; if (ctx.abortEarly) return invalid;
+      }
+      if (rule.kind === "mac" && !MAC_RE.test(input)) {
+        ctx.addIssue({ code: "invalid_string", validation: "mac", message: rule.message });
+        failed = true; if (ctx.abortEarly) return invalid;
+      }
+      if (rule.kind === "semver" && !SEMVER_RE.test(input)) {
+        ctx.addIssue({ code: "invalid_string", validation: "semver", message: rule.message });
+        failed = true; if (ctx.abortEarly) return invalid;
+      }
+      if (rule.kind === "creditCard" && !isCreditCard(input)) {
+        ctx.addIssue({ code: "invalid_string", validation: "creditCard", message: rule.message });
+        failed = true; if (ctx.abortEarly) return invalid;
+      }
+      if (rule.kind === "imei" && !isImei(input)) {
+        ctx.addIssue({ code: "invalid_string", validation: "imei", message: rule.message });
+        failed = true; if (ctx.abortEarly) return invalid;
+      }
+      if (rule.kind === "hash" && !new RegExp(`^[0-9a-fA-F]{${HASH_LENGTHS[rule.algorithm]}}$`).test(input)) {
+        ctx.addIssue({ code: "invalid_string", validation: "hash", message: rule.message });
+        failed = true; if (ctx.abortEarly) return invalid;
+      }
+      if (rule.kind === "hex" && !HEX_RE.test(input)) {
+        ctx.addIssue({ code: "invalid_string", validation: "hex", message: rule.message });
+        failed = true; if (ctx.abortEarly) return invalid;
+      }
+      if (rule.kind === "base64url" && !BASE64URL_RE.test(input)) {
+        ctx.addIssue({ code: "invalid_string", validation: "base64url", message: rule.message });
+        failed = true; if (ctx.abortEarly) return invalid;
+      }
+      if (rule.kind === "lowercase" && input !== input.toLowerCase()) {
+        ctx.addIssue({ code: "invalid_string", validation: "lowercase", message: rule.message });
+        failed = true; if (ctx.abortEarly) return invalid;
+      }
+      if (rule.kind === "uppercase" && input !== input.toUpperCase()) {
+        ctx.addIssue({ code: "invalid_string", validation: "uppercase", message: rule.message });
+        failed = true; if (ctx.abortEarly) return invalid;
+      }
+      if (rule.kind === "normalize" && input !== input.normalize("NFC")) {
+        ctx.addIssue({ code: "invalid_string", validation: "normalized", message: rule.message });
         failed = true; if (ctx.abortEarly) return invalid;
       }
     }

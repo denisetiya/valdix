@@ -30,7 +30,7 @@ export interface ValdixIssue {
   maximum?: number;
   inclusive?: boolean;
   exact?: boolean;
-  kind?: "string" | "number" | "bigint" | "array" | "date" | "tuple" | "set" | "map";
+  kind?: "string" | "number" | "bigint" | "array" | "date" | "tuple" | "set" | "map" | "file" | "record";
   validation?: string;
   keys?: string[];
   options?: unknown[];

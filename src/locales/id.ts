@@ -49,9 +49,26 @@ export const ID: LocaleCatalog = {
     if (i.validation === "numeric") return "Hanya boleh angka (0-9)";
     if (i.validation === "symbol") return "Hanya boleh simbol, tanpa huruf/angka";
     if (i.validation === "phone") return "Nomor HP tidak valid";
+    if (i.validation === "e164") return "Pakai format internasional, contoh +6281234567890";
+    if (i.validation === "jwt") return "Format token tidak valid";
+    if (i.validation === "mac") return "Format MAC address tidak valid";
+    if (i.validation === "semver") return "Pakai format versi seperti 1.2.3";
+    if (i.validation === "creditCard") return "Nomor kartu tidak valid";
+    if (i.validation === "imei") return "IMEI harus 15 digit";
+    if (i.validation === "hash") return "Format hash tidak valid";
+    if (i.validation === "hex") return "Hanya boleh hex (0-9, a-f)";
+    if (i.validation === "base64url") return "Format base64url tidak valid";
+    if (i.validation === "lowercase") return "Harus huruf kecil semua";
+    if (i.validation === "uppercase") return "Harus huruf besar semua";
+    if (i.validation === "normalized") return "Teks harus ternormalisasi (NFC)";
     return "Format tidak valid";
   },
-  invalid_number: () => "Masukkan angka yang valid",
+  invalid_number: (i) => {
+    if (i.validation === "nan") return "Harus NaN";
+    if (i.validation === "step") return "Angka harus kelipatan yang pas";
+    if (i.validation === "multiple") return "Angka harus kelipatan";
+    return "Masukkan angka yang valid";
+  },
   invalid_date: () => "Masukkan tanggal yang valid",
   invalid_array: () => "Harus berupa daftar item",
   invalid_union: () => "Nilai tidak cocok dengan format mana pun",

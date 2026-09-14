@@ -6,12 +6,39 @@ import { typeOf } from "../core/utils.js";
 type DateRule = { kind: "min"; value: Date; message?: string } | { kind: "max"; value: Date; message?: string };
 
 export class BigIntSchema extends Schema<bigint> {
+  private _min?: bigint;
+  private _max?: bigint;
+  constructor(private readonly rules: { kind: "min" | "max"; value: bigint; message?: string }[] = []) {
+    super();
+    for (const r of rules) {
+      if (r.kind === "min") this._min = r.value;
+      if (r.kind === "max") this._max = r.value;
+    }
+  }
+  /** Require bigint ≥ n. */
+  min(n: bigint, message?: string): BigIntSchema { return new BigIntSchema([...this.rules, { kind: "min", value: n, message }]); }
+  /** Require bigint ≤ n. */
+  max(n: bigint, message?: string): BigIntSchema { return new BigIntSchema([...this.rules, { kind: "max", value: n, message }]); }
   _toJSONSchema(): unknown { return { type: "integer", format: "bigint", ...(this.description ? { description: this.description } : {}) }; }
   _parse(input: unknown, ctx: ParseContext): InternalResult<bigint> {
-    if (typeof input === "bigint") return ok(input);
-    if (typeof input === "number" && Number.isInteger(input)) return ok(BigInt(input));
-    ctx.addIssue({ code: "invalid_type", expected: "bigint", received: typeOf(input) });
-    return invalid;
+    let value: bigint;
+    if (typeof input === "bigint") value = input;
+    else if (typeof input === "number" && Number.isInteger(input)) value = BigInt(input);
+    else {
+      ctx.addIssue({ code: "invalid_type", expected: "bigint", received: typeOf(input) });
+      return invalid;
+    }
+    for (const rule of this.rules) {
+      if (rule.kind === "min" && value < rule.value) {
+        ctx.addIssue({ code: "too_small", kind: "bigint", minimum: Number(rule.value), inclusive: true, message: rule.message });
+        if (ctx.abortEarly) return invalid; continue;
+      }
+      if (rule.kind === "max" && value > rule.value) {
+        ctx.addIssue({ code: "too_big", kind: "bigint", maximum: Number(rule.value), inclusive: true, message: rule.message });
+        if (ctx.abortEarly) return invalid; continue;
+      }
+    }
+    return ok(value);
   }
 }
 
@@ -150,5 +177,102 @@ export class VoidSchema extends Schema<void> {
   _parse(input: unknown, ctx: ParseContext): InternalResult<void> {
     if (input !== undefined) { ctx.addIssue({ code: "invalid_type", expected: "undefined", received: typeOf(input) }); return invalid; }
     return ok(undefined);
+  }
+}
+
+export interface FileConstraints {
+  maxSize?: number;
+  mime?: (string | RegExp)[];
+}
+
+export class FileSchema extends Schema<File> {
+  constructor(private readonly constraints: FileConstraints = {}) { super(); }
+  /** Require file size ≤ n bytes. */
+  maxSize(n: number): FileSchema { return new FileSchema({ ...this.constraints, maxSize: n }); }
+  /** Require MIME type to match one of the given strings or patterns. */
+  mime(...types: (string | RegExp)[]): FileSchema {
+    return new FileSchema({ ...this.constraints, mime: [...(this.constraints.mime ?? []), ...types] });
+  }
+  _parse(input: unknown, ctx: ParseContext): InternalResult<File> {
+    const isFile = typeof File !== "undefined" && input instanceof File;
+    if (!isFile) {
+      ctx.addIssue({ code: "invalid_type", expected: "File", received: typeOf(input) });
+      return invalid;
+    }
+    const f = input as File;
+    if (this.constraints.maxSize !== undefined && f.size > this.constraints.maxSize) {
+      ctx.addIssue({ code: "too_big", kind: "file" as any, maximum: this.constraints.maxSize, inclusive: true });
+      return invalid;
+    }
+    if (this.constraints.mime && this.constraints.mime.length > 0) {
+      const accepted = this.constraints.mime.some((m) =>
+        typeof m === "string" ? f.type === m : m.test(f.type)
+      );
+      if (!accepted) {
+        ctx.addIssue({ code: "invalid_string", validation: "mime" });
+        return invalid;
+      }
+    }
+    return ok(f);
+  }
+}
+
+export class TemplateLiteralSchema extends Schema<string> {
+  constructor(private readonly parts: (string | Schema<any, any>)[]) { super(); }
+  _parse(input: unknown, ctx: ParseContext): InternalResult<string> {
+    if (typeof input !== "string") {
+      ctx.addIssue({ code: "invalid_type", expected: "string", received: typeOf(input) });
+      return invalid;
+    }
+    let pos = 0;
+    for (const part of this.parts) {
+      if (typeof part === "string") {
+        if (!input.startsWith(part, pos)) {
+          ctx.addIssue({ code: "invalid_string", validation: "template" });
+          return invalid;
+        }
+        pos += part.length;
+      } else {
+        const child = ctx.fork();
+        let matched = false;
+        for (let end = pos + 1; end <= input.length; end++) {
+          const slice = input.slice(pos, end);
+          const probe = child.fork();
+          const r = part._parseWithContext(slice, probe);
+          if (r.ok && probe.issues.length === 0) {
+            const rest = this.parts.slice(this.parts.indexOf(part) + 1);
+            const next = rest.find((p) => typeof p === "string") as string | undefined;
+            if (next === undefined || input.startsWith(next, end)) {
+              pos = end;
+              matched = true;
+              break;
+            }
+          }
+        }
+        if (!matched) {
+          ctx.addIssue({ code: "invalid_string", validation: "template" });
+          return invalid;
+        }
+      }
+    }
+    if (pos !== input.length) {
+      ctx.addIssue({ code: "invalid_string", validation: "template" });
+      return invalid;
+    }
+    return ok(input);
+  }
+}
+
+export class CustomSchema<T> extends Schema<T> {
+  constructor(private readonly check: (value: unknown) => value is T) { super(); }
+  _parse(input: unknown, ctx: ParseContext): InternalResult<T> {
+    try {
+      if (this.check(input)) return ok(input);
+    } catch {
+      ctx.addIssue({ code: "custom", message: "Refinement error" });
+      return invalid;
+    }
+    ctx.addIssue({ code: "custom" });
+    return invalid;
   }
 }

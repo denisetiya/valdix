@@ -53,6 +53,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Build (ESM + CJS + types)
+        run: npm run build
+
       - name: Test
         run: npm test
 
@@ -62,9 +65,6 @@ jobs:
             echo "--- $f ---"
             node "$f" > /dev/null
           done
-
-      - name: Build (ESM + CJS + types)
-        run: npm run build
 
       - name: Bundle size
         run: npm run size

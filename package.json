@@ -1,6 +1,6 @@
 {
-  "name": "valdix",
-  "version": "0.6.0",
+  "name": "@denisetiya/valdix",
+  "version": "1.1.0",
   "description": "Zero-dependency TypeScript-first schema validation with 17 built-in locales and casual end-user-ready error messages. About 1KB gzipped.",
   "type": "module",
   "main": "./dist/cjs/index.cjs",

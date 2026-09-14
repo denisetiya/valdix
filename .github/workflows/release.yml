@@ -115,7 +115,7 @@ jobs:
         if: ${{ !inputs.dry_run }}
         run: |
           NEW="${{ steps.version.outputs.new }}"
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://registry.npmjs.org/valdix/${NEW}")
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://registry.npmjs.org/@denisetiya%2fvaldix/${NEW}")
           if [ "$STATUS" = "200" ]; then
             echo "::error::Version $NEW is already published on npm."
             exit 1
@@ -168,9 +168,9 @@ jobs:
         run: |
           cd /tmp
           npm init -y >/dev/null
-          npm install valdix@${{ steps.version.outputs.new }} --no-audit --no-fund
+          npm install @denisetiya/valdix@${{ steps.version.outputs.new }} --no-audit --no-fund
           node -e "
-            const v = require('/tmp/node_modules/valdix');
+            const v = require('/tmp/node_modules/@denisetiya/valdix');
             const schema = v.v.object({ name: v.v.string().min(3) });
             const r = schema.safeParse({ name: 'ab' });
             if (r.success) throw new Error('Expected validation to fail');

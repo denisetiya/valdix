@@ -3,7 +3,7 @@
 > Schema validation with messages your users can read. Zero dependencies, TypeScript-first, 17 locales, about 1 KB gzipped.
 
 ```ts
-import v from "valdix"
+import v from "@denisetiya/valdix"
 
 const Signup = v.object({
   name: v.string().min(3),
@@ -326,7 +326,7 @@ Valdix is small (2.8 KB raw, 958 B gzipped; Zod is about 13 KB gzipped). On this
 ## Setup
 
 ```bash
-npm install valdix
+npm install @denisetiya/valdix
 ```
 
 ## Scripts

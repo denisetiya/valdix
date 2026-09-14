@@ -1,5 +1,5 @@
 // Recursive type example: tree structure (TypeScript)
-import v, { type Infer } from "valdix";
+import v, { type Infer } from "@denisetiya/valdix";
 
 type Category = {
   name: string;

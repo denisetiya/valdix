@@ -5,9 +5,9 @@ import Base from "../layouts/Base.astro";
   <h1>Quick start</h1>
   <p class="lede">Install, define a schema, parse. Three steps, one dependency (none).</p>
   <h2>Install</h2>
-  <pre><code>npm install valdix</code></pre>
+  <pre><code>npm install @denisetiya/valdix</code></pre>
   <h2>First schema</h2>
-  <pre><code>import v from "valdix";
+  <pre><code>import v from "@denisetiya/valdix";
 
 const Signup = v.object(&#123;
   name: v.string().min(3),

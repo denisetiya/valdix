@@ -15,7 +15,7 @@ Valdix is API-compatible with most of Zod. The migration is mostly mechanical.
 import { z } from "zod";
 
 // Valdix
-import v from "valdix";
+import v from "@denisetiya/valdix";
 ```
 
 ## Schema construction

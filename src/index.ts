@@ -3,7 +3,7 @@
  *
  * @example
  * ```ts
- * import { v } from "valdix";
+ * import { v } from "@denisetiya/valdix";
  *
  * const schema = v.object({
  *   name: v.string().min(3, "Minimal 3 karakter"),
